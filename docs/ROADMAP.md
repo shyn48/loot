@@ -24,6 +24,9 @@ support is explicitly out of scope.
 - ✅ **Config file** — done. `~/.config/godownloader/config.toml` sets `download_dir` (default
   `~/Downloads`), `max_active`, and `section_size_mb`. Written with defaults on first run.
   (Bandwidth throttle setting still TODO.)
+- ✅ **Send to godownloader (Automator Quick Action)** — done. `godownloader add <url>` appends to
+  an inbox the running app drains every second; ships an Automator Quick Action to right-click any
+  URL. See `docs/QUICK-ACTION.md`. (A background daemon for headless downloads is still out of scope.)
 - ✅ **Clipboard add** — done. Pressing `a` prefills the input from the clipboard when it's a URL.
 - ✅ **Batch add** — done. The add input accepts multiple whitespace/newline-separated URLs.
   (Import-from-file could be a follow-up.)

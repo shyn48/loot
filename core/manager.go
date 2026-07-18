@@ -27,6 +27,7 @@ type Manager struct {
 	bytesPerSection int64 // target bytes per parallel section
 	notify          bool  // fire a macOS notification on completion
 
+	inboxMu  sync.Mutex
 	done     chan struct{}
 	closeOne sync.Once
 }
@@ -64,6 +65,7 @@ func newManager(downloadDir, stateDir string) (*Manager, error) {
 	}
 	m := &Manager{downloadDir: downloadDir, stateDir: stateDir, maxActive: defaultMaxActive, bytesPerSection: defaultBytesPerSection, done: make(chan struct{})}
 	go m.sampleLoop()
+	go m.inboxLoop()
 	return m, nil
 }
 

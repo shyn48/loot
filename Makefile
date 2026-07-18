@@ -33,6 +33,14 @@ install-cli: build
 	cp $(DIST)/$(BINARY) "$(GOBIN)/$(BINARY)"
 	@echo "Installed $(BINARY) to $(GOBIN) (make sure it is on your PATH)"
 
+## install-quick-action: install the "Send to godownloader" right-click Quick Action
+install-quick-action:
+	@mkdir -p "$(HOME)/Library/Services"
+	@rm -rf "$(HOME)/Library/Services/Send to godownloader.workflow"
+	cp -R "packaging/quick-action/Send to godownloader.workflow" "$(HOME)/Library/Services/"
+	@echo "Installed. Enable it in System Settings ▸ Keyboard ▸ Keyboard Shortcuts ▸ Services if needed,"
+	@echo "then right-click a URL/selected text ▸ Services ▸ Send to godownloader."
+
 ## app: assemble a double-clickable, ad-hoc-signed .app (launches the GUI)
 app: build $(ICNS)
 	@rm -rf "$(APP)"
