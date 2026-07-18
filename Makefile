@@ -9,7 +9,13 @@ ICNS        := packaging/AppIcon.icns
 INSTALL_DIR := /Applications
 GOBIN       := $(shell go env GOPATH)/bin
 
-.PHONY: run gui test build app install install-cli icon clean
+.PHONY: run gui test build app install install-cli install-quick-action demo icon clean
+
+## demo: record demo.gif from demo.tape (needs `brew install vhs`)
+demo:
+	@command -v vhs >/dev/null || { echo "vhs not found — run: brew install vhs"; exit 1; }
+	vhs demo.tape
+	@echo "Wrote demo.gif"
 
 ## run: launch the TUI straight from source (dev)
 run:
