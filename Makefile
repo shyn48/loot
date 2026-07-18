@@ -41,14 +41,14 @@ install-quick-action:
 	@echo "Installed. Enable it in System Settings ▸ Keyboard ▸ Keyboard Shortcuts ▸ Services if needed,"
 	@echo "then right-click a URL/selected text ▸ Services ▸ Send to godownloader."
 
-## app: assemble a double-clickable, ad-hoc-signed .app (launches the GUI)
+## app: assemble a double-clickable, ad-hoc-signed .app (opens the TUI in Terminal)
 app: build $(ICNS)
 	@rm -rf "$(APP)"
 	@mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
-	# The bundle executable is a launcher script that runs the binary with --gui;
-	# the real binary is shipped alongside it as godownloader-bin.
+	# The bundle executable is a launcher script that opens the TUI in Terminal.app;
+	# the real binary is shipped alongside it as godownloader-bin (fallback).
 	cp $(DIST)/$(BINARY) "$(APP)/Contents/MacOS/godownloader-bin"
-	cp packaging/launch-gui.sh "$(APP)/Contents/MacOS/godownloader"
+	cp packaging/launch-terminal.sh "$(APP)/Contents/MacOS/godownloader"
 	chmod +x "$(APP)/Contents/MacOS/godownloader"
 	cp packaging/Info.plist "$(APP)/Contents/Info.plist"
 	cp $(ICNS) "$(APP)/Contents/Resources/AppIcon.icns"
