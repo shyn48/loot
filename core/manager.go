@@ -34,18 +34,21 @@ const (
 	defaultBytesPerSection = 2 * 1024 * 1024
 )
 
-// NewManager resolves the standard download/temp directories, creates them, and
-// returns a ready manager. (Folds the old core.Start dir-setup.)
+// NewManager loads config, resolves the download/state directories, creates
+// them, and returns a ready manager. (Folds the old core.Start dir-setup.)
 func NewManager() (*Manager, error) {
-	dl, err := GetDownloadPath("")
-	if err != nil {
-		return nil, err
-	}
+	cfg := LoadConfig()
 	st, err := GetTempPath()
 	if err != nil {
 		return nil, err
 	}
-	return newManager(dl, st)
+	m, err := newManager(cfg.DownloadDir, st)
+	if err != nil {
+		return nil, err
+	}
+	m.maxActive = cfg.MaxActive
+	m.bytesPerSection = int64(cfg.SectionSizeMB) * 1024 * 1024
+	return m, nil
 }
 
 // newManager is the injectable constructor used by tests.

@@ -21,8 +21,9 @@ support is explicitly out of scope.
 - **Checksum verification** — server `Content-MD5` or a user-supplied hash.
 
 ## Features
-- **Config file** (`~/.config/godownloader/config.toml`): download dir, max concurrency, default
-  sections, throttle — replacing today's hardcoded `~/shyn-dl-manager` and `TotalSection = 20`.
+- ✅ **Config file** — done. `~/.config/godownloader/config.toml` sets `download_dir` (default
+  `~/Downloads`), `max_active`, and `section_size_mb`. Written with defaults on first run.
+  (Bandwidth throttle setting still TODO.)
 - **Clipboard add** — grab a URL from the clipboard with a keypress.
 - **Batch add** — multiple URLs at once / import from a text file.
 - **macOS completion notifications** — via `osascript` / `terminal-notifier`.

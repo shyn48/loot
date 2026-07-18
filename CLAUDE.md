@@ -47,9 +47,13 @@ hands the manager to either `tui.Run(m)` or `gui.Run(m)`.
     resumes them. Nothing auto-resumes.
   - **`core.Controller`** (`controller.go`) is the interface the front-ends depend on.
   - `download.go` now holds only shared HTTP helpers + `GetFileDetails` (single HEAD probe →
-    `FileDetails{Name, Size, AcceptRanges}`). `sections.go` has the pure math (`computeSections`,
-    `remainingRange`, `ewma`, `etaSeconds`). Paths: `core/consts.go` +
-    `GetDownloadPath`/`GetTempPath` (`~/shyn-dl-manager/out/{downloads,tmp}`).
+    `FileDetails{Name, Size, AcceptRanges}`, honoring `Content-Disposition`). `sections.go` has the
+    pure math (`computeSections`, `remainingRange`, `sectionsForSize`, `ewma`, `etaSeconds`).
+  - **Config** (`config.go`): `~/.config/godownloader/config.toml` sets `download_dir` (default
+    `~/Downloads`), `max_active`, `section_size_mb`; applied in `NewManager`. State/temp files live
+    in `~/shyn-dl-manager/out/tmp` (`GetTempPath`); `<id>.meta.json` records each download there.
+  - **Queue/retry**: `maxActive` caps concurrent downloads (`schedule()` promotes queued jobs);
+    sections retry with backoff (`runSection`).
 
 - **`tui/`** — Bubble Tea front-end. `Model`/`Update` (`model.go`) hold no download state; they
   render `Controller.Snapshot()` on a ~150ms tick and forward key actions
