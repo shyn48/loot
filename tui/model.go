@@ -20,6 +20,7 @@ type Model struct {
 	input    textinput.Model
 	showHelp bool
 	errMsg   string
+	clockStr string
 	w, h     int
 }
 
@@ -30,7 +31,7 @@ func newModel(ctrl core.Controller) Model {
 	ti.Placeholder = "https://example.com/file.zip"
 	ti.CharLimit = 2048
 	ti.Width = 60
-	return Model{ctrl: ctrl, rows: ctrl.Snapshot(), input: ti}
+	return Model{ctrl: ctrl, rows: sortRows(ctrl.Snapshot()), input: ti}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -47,7 +48,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.w, m.h = msg.Width, msg.Height
 		return m, nil
 	case tickMsg:
-		m.rows = m.ctrl.Snapshot()
+		m.rows = sortRows(m.ctrl.Snapshot())
+		m.clockStr = time.Time(msg).Format("15:04:05")
 		m.clampCursor()
 		return m, tick()
 	case tea.KeyMsg:
@@ -126,6 +128,13 @@ func (m Model) selectedID() (string, bool) {
 		return m.rows[m.cursor].ID, true
 	}
 	return "", false
+}
+
+func (m Model) selected() (core.JobStatus, bool) {
+	if m.cursor >= 0 && m.cursor < len(m.rows) {
+		return m.rows[m.cursor], true
+	}
+	return core.JobStatus{}, false
 }
 
 func (m *Model) clampCursor() {

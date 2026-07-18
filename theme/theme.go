@@ -18,5 +18,7 @@ var (
 	TextMuted    = color.RGBA{R: 0x8b, G: 0x95, B: 0xa7, A: 0xff}
 	Success      = color.RGBA{R: 0x34, G: 0xd3, B: 0x99, A: 0xff} // emerald for DONE
 	Danger       = color.RGBA{R: 0xf8, G: 0x71, B: 0x71, A: 0xff} // red for errors
+	Warning      = color.RGBA{R: 0xf5, G: 0xc5, B: 0x18, A: 0xff} // amber for PAUSED
+	Purple       = color.RGBA{R: 0xb5, G: 0x7e, B: 0xdc, A: 0xff} // for QUEUED
 	HeaderBg     = color.RGBA{R: 0x22, G: 0x29, B: 0x36, A: 0xff}
 )

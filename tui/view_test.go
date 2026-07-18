@@ -3,28 +3,28 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-func TestBar(t *testing.T) {
-	if got := bar(0, 10); got != strings.Repeat("░", 10) {
-		t.Fatalf("bar(0) = %q", got)
+func TestBlockBar(t *testing.T) {
+	plain := lipgloss.NewStyle()
+	if got := blockBar(0, 10, "■", "·", plain, plain); got != strings.Repeat("·", 10) {
+		t.Fatalf("blockBar(0) = %q", got)
 	}
-	if got := bar(100, 10); got != strings.Repeat("█", 10) {
-		t.Fatalf("bar(100) = %q", got)
+	if got := blockBar(100, 10, "■", "·", plain, plain); got != strings.Repeat("■", 10) {
+		t.Fatalf("blockBar(100) = %q", got)
 	}
-	if got := bar(50, 10); got != strings.Repeat("█", 5)+strings.Repeat("░", 5) {
-		t.Fatalf("bar(50) = %q", got)
+	if got := blockBar(50, 10, "■", "·", plain, plain); got != strings.Repeat("■", 5)+strings.Repeat("·", 5) {
+		t.Fatalf("blockBar(50) = %q", got)
 	}
 }
 
-func TestFormatETA(t *testing.T) {
-	if formatETA(-1) != "—" {
-		t.Fatal("eta -1 should be em dash")
+func TestTruncate(t *testing.T) {
+	if truncate("short", 10) != "short" {
+		t.Fatal("no truncation when it fits")
 	}
-	if got := formatETA(72); got != "1:12" {
-		t.Fatalf("formatETA(72) = %q", got)
-	}
-	if got := formatETA(5); got != "0:05" {
-		t.Fatalf("formatETA(5) = %q", got)
+	if got := truncate("abcdefghij", 5); got != "abcd…" {
+		t.Fatalf("truncate = %q", got)
 	}
 }
