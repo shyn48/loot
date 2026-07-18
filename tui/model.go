@@ -19,6 +19,8 @@ type Model struct {
 	adding    bool
 	input     textinput.Model
 	showHelp  bool
+	filtering bool
+	filter    string
 	errMsg    string
 	clockStr  string
 	speedHist map[string][]float64 // per-job recent speed samples, for the sparkline
@@ -79,9 +81,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.adding {
 			return m.updateAdding(msg)
 		}
+		if m.filtering {
+			return m.updateFiltering(msg)
+		}
 		return m.updateNormal(msg)
 	}
 	return m, nil
+}
+
+// visible returns the rows currently shown: all of them, or those whose name
+// matches the active filter (case-insensitive substring).
+func (m Model) visible() []core.JobStatus {
+	if m.filter == "" {
+		return m.rows
+	}
+	q := strings.ToLower(m.filter)
+	out := make([]core.JobStatus, 0, len(m.rows))
+	for _, r := range m.rows {
+		if strings.Contains(strings.ToLower(r.Name), q) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -90,7 +111,7 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.ctrl.PauseAll()
 		return m, tea.Quit
 	case "j", "down":
-		if m.cursor < len(m.rows)-1 {
+		if m.cursor < len(m.visible())-1 {
 			m.cursor++
 		}
 	case "k", "up":
@@ -103,6 +124,15 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input.Reset()
 		m.input.Focus()
 		return m, textinput.Blink
+	case "/":
+		m.filtering = true
+		m.filter = ""
+		m.input.Reset()
+		m.input.Focus()
+		return m, textinput.Blink
+	case "esc":
+		m.filter = "" // clear an applied filter
+		m.clampCursor()
 	case "p":
 		if id, ok := m.selectedID(); ok {
 			m.ctrl.Pause(id)
@@ -146,23 +176,45 @@ func (m Model) updateAdding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) updateFiltering(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		m.filtering = false // keep the filter applied
+		return m, nil
+	case "esc":
+		m.filtering = false
+		m.filter = ""
+		m.input.Reset()
+		m.clampCursor()
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	m.filter = m.input.Value()
+	m.clampCursor()
+	return m, cmd
+}
+
 func (m Model) selectedID() (string, bool) {
-	if m.cursor >= 0 && m.cursor < len(m.rows) {
-		return m.rows[m.cursor].ID, true
+	rows := m.visible()
+	if m.cursor >= 0 && m.cursor < len(rows) {
+		return rows[m.cursor].ID, true
 	}
 	return "", false
 }
 
 func (m Model) selected() (core.JobStatus, bool) {
-	if m.cursor >= 0 && m.cursor < len(m.rows) {
-		return m.rows[m.cursor], true
+	rows := m.visible()
+	if m.cursor >= 0 && m.cursor < len(rows) {
+		return rows[m.cursor], true
 	}
 	return core.JobStatus{}, false
 }
 
 func (m *Model) clampCursor() {
-	if m.cursor >= len(m.rows) {
-		m.cursor = len(m.rows) - 1
+	n := len(m.visible())
+	if m.cursor >= n {
+		m.cursor = n - 1
 	}
 	if m.cursor < 0 {
 		m.cursor = 0

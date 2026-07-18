@@ -68,6 +68,11 @@ func (m Model) View() string {
 	if m.adding {
 		parts = append(parts, sText.Render(" Add URL: ")+m.input.View())
 	}
+	if m.filtering {
+		parts = append(parts, sText.Render(" Filter: ")+m.input.View())
+	} else if m.filter != "" {
+		parts = append(parts, sMuted.Render(" Filter: ")+sAccent.Render(m.filter)+sMuted.Render("  (esc to clear)"))
+	}
 	parts = append(parts, m.footerBar(width))
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
@@ -110,22 +115,27 @@ func (m Model) nameWidth(inner int) int {
 
 func (m Model) listPanel(inner int) string {
 	wName := m.nameWidth(inner)
+	rows := m.visible()
 	var b strings.Builder
 
 	b.WriteString(columnHeader(wName))
 	b.WriteString("\n")
 	b.WriteString(sBorder.Render(strings.Repeat("╌", inner)))
 
-	if len(m.rows) == 0 {
+	if len(rows) == 0 {
 		b.WriteString("\n\n")
-		b.WriteString(sMuted.Render("  No downloads yet — press 'a' to add one."))
+		if m.filter != "" {
+			b.WriteString(sMuted.Render("  No downloads match \"" + m.filter + "\"."))
+		} else {
+			b.WriteString(sMuted.Render("  No downloads yet — press 'a' to add one."))
+		}
 		return box(b.String(), inner)
 	}
 
-	boundary := activeCount(m.rows)
-	for i, r := range m.rows {
+	boundary := activeCount(rows)
+	for i, r := range rows {
 		b.WriteString("\n")
-		if i == boundary && boundary > 0 && boundary < len(m.rows) {
+		if i == boundary && boundary > 0 && boundary < len(rows) {
 			b.WriteString(sBorder.Render(strings.Repeat("╌", inner)))
 			b.WriteString("\n")
 		}

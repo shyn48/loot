@@ -121,6 +121,34 @@ func TestAddErrorSurfaced(t *testing.T) {
 	}
 }
 
+func TestFilterMode(t *testing.T) {
+	fc := &fakeController{rows: []core.JobStatus{
+		{ID: "1", Name: "ubuntu.iso"},
+		{ID: "2", Name: "fedora.iso"},
+		{ID: "3", Name: "ubuntu-server.iso"},
+	}}
+	m := newModel(fc)
+	m, _ = updateKey(m, "/")
+	if !m.filtering {
+		t.Fatal("/ should enter filter mode")
+	}
+	m = typeString(m, "ubuntu")
+	if len(m.visible()) != 2 {
+		t.Fatalf("filter 'ubuntu' should match 2, got %d", len(m.visible()))
+	}
+	m, _ = updateKey(m, "enter")
+	if m.filtering {
+		t.Fatal("enter should exit filter mode")
+	}
+	if len(m.visible()) != 2 {
+		t.Fatal("filter should stay applied after enter")
+	}
+	m, _ = updateKey(m, "esc")
+	if m.filter != "" || len(m.visible()) != 3 {
+		t.Fatalf("esc should clear filter (filter=%q, visible=%d)", m.filter, len(m.visible()))
+	}
+}
+
 func TestQuitPausesAll(t *testing.T) {
 	fc := &fakeController{rows: threeRows()}
 	m := newModel(fc)
