@@ -3,6 +3,8 @@
 A fast, resumable **terminal download manager for macOS** — segmented multi-connection
 downloads with pause/resume, a live `btop`-style TUI, and a desktop window when you want it.
 
+![Loot demo](demo.gif)
+
 ```text
 ╭────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Loot  │ Active: 2 │ Total Speed: 3.31 MB/s │ Completed: 2 │ Queued: 1 │ Errors: 0     10:42:31 │
@@ -28,8 +30,7 @@ downloads with pause/resume, a live `btop`-style TUI, and a desktop window when 
  a add │ p pause │ r resume │ d delete │ o open │ / filter │ ? help │ q quit
 ```
 
-> Colors and the live speed sparkline don't show in this static preview — run it to see it in full.
-> To record an animated GIF: `brew install vhs && vhs demo.tape`.
+> A static snapshot — colors and the live speed sparkline animate in the GIF above (and when you run it).
 
 ## Features
 
