@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -303,6 +304,11 @@ func (m *Manager) anyDownloading() bool {
 		}
 	}
 	return false
+}
+
+// OpenFolder reveals the downloads directory in the OS file browser (macOS).
+func (m *Manager) OpenFolder() error {
+	return exec.Command("open", m.downloadDir).Run()
 }
 
 func (m *Manager) metaFor(j *Job) meta {
