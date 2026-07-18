@@ -5,7 +5,9 @@ Ideas captured for later. **TUI polish is being done first** (see the reference 
 support is explicitly out of scope.
 
 ## Engine / robustness
-- **Section retry with backoff** — one flaky section shouldn't fail the whole download.
+- ✅ **Section retry with backoff** — done. Each section retries up to 4× with exponential
+  backoff (200ms→5s cap), recomputing the remaining range each attempt so retries resume
+  within the section. Single-stream downloads get a restart-retry.
 - ✅ **Concurrency queue** — done. Manager caps active downloads at `maxActive` (default 3); extras
   wait in `StateQueued` and auto-promote when a slot frees. Lights up the TUI "Queued" column.
   (Making `maxActive` user-configurable is part of the config-file item below.)

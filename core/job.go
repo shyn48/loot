@@ -167,23 +167,20 @@ func (j *Job) sectionFile(tempDir string, i int) string {
 // present in its temp file.
 func (j *Job) run(ctx context.Context, tempDir string) error {
 	if !j.isSegmented() {
-		return j.singleStream(ctx)
+		return j.singleStreamWithRetry(ctx)
 	}
 
 	wg := sync.WaitGroup{}
 	errs := make([]error, len(j.Sections))
-	for i, sec := range j.Sections {
-		have := fileSize(j.sectionFile(tempDir, i))
-		start, end, ok := remainingRange(sec, have)
-		if !ok {
+	for i := range j.Sections {
+		if _, _, ok := remainingRange(j.Sections[i], fileSize(j.sectionFile(tempDir, i))); !ok {
 			continue // section already complete
 		}
-		truncate := have == 0
 		wg.Add(1)
-		go func(i int, start, end int64, truncate bool) {
+		go func(i int) {
 			defer wg.Done()
-			errs[i] = j.downloadSection(ctx, tempDir, i, start, end, truncate)
-		}(i, start, end, truncate)
+			errs[i] = j.runSection(ctx, tempDir, i)
+		}(i)
 	}
 	wg.Wait()
 
@@ -202,6 +199,72 @@ func (j *Job) run(ctx context.Context, tempDir string) error {
 	}
 	j.cleanupTempFiles(tempDir)
 	return nil
+}
+
+// runSection downloads one section, retrying transient failures with backoff.
+// Each attempt recomputes the remaining range from the temp file, so a retry
+// resumes within the section instead of re-downloading it.
+func (j *Job) runSection(ctx context.Context, tempDir string, i int) error {
+	const maxAttempts = 4
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return nil
+		}
+		have := fileSize(j.sectionFile(tempDir, i))
+		start, end, ok := remainingRange(j.Sections[i], have)
+		if !ok {
+			return nil
+		}
+		if err := j.downloadSection(ctx, tempDir, i, start, end, have == 0); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+		if !sleepBackoff(ctx, attempt) {
+			return nil // cancelled during backoff
+		}
+	}
+	return fmt.Errorf("section %d failed after %d attempts: %w", i+1, maxAttempts, lastErr)
+}
+
+func (j *Job) singleStreamWithRetry(ctx context.Context) error {
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return errPaused
+		}
+		err := j.singleStream(ctx)
+		if err == nil || errors.Is(err, errPaused) {
+			return err
+		}
+		lastErr = err
+		if !sleepBackoff(ctx, attempt) {
+			return errPaused
+		}
+	}
+	return lastErr
+}
+
+// sleepBackoff waits an exponentially increasing delay (200ms, 400ms, ... capped
+// at 5s); returns false if the context is cancelled during the wait.
+func sleepBackoff(ctx context.Context, attempt int) bool {
+	d := time.Duration(200<<attempt) * time.Millisecond
+	if d > 5*time.Second {
+		d = 5 * time.Second
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
 
 func (j *Job) downloadSection(ctx context.Context, tempDir string, i int, start, end int64, truncate bool) error {
