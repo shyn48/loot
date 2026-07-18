@@ -174,6 +174,22 @@ func (m *Manager) Snapshot() []JobStatus {
 	return out
 }
 
+// Pause cancels a running download; its partial temp files remain so Resume can
+// continue from where it stopped.
+func (m *Manager) Pause(id string) {
+	j := m.findJob(id)
+	if j == nil {
+		return
+	}
+	// Only cancel here; the state flips to Paused in start() once run() returns,
+	// which guarantees every section goroutine has actually stopped writing.
+	j.mu.Lock()
+	if j.state == StateDownloading && j.cancel != nil {
+		j.cancel()
+	}
+	j.mu.Unlock()
+}
+
 func (m *Manager) metaFor(j *Job) meta {
 	return meta{
 		ID:           j.ID,
