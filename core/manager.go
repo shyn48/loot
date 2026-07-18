@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ type Manager struct {
 	stateDir        string
 	maxActive       int   // cap on simultaneously-downloading jobs
 	bytesPerSection int64 // target bytes per parallel section
+	notify          bool  // fire a macOS notification on completion
 
 	done     chan struct{}
 	closeOne sync.Once
@@ -48,6 +50,7 @@ func NewManager() (*Manager, error) {
 	}
 	m.maxActive = cfg.MaxActive
 	m.bytesPerSection = int64(cfg.SectionSizeMB) * 1024 * 1024
+	m.notify = cfg.Notifications
 	return m, nil
 }
 
@@ -217,6 +220,7 @@ func (m *Manager) start(j *Job) {
 
 	err := j.run(ctx, m.stateDir)
 
+	completed := false
 	j.mu.Lock()
 	switch {
 	case errors.Is(err, errPaused):
@@ -226,10 +230,22 @@ func (m *Manager) start(j *Job) {
 		j.err = err
 	default:
 		j.state = StateDone
+		completed = true
 	}
+	name := j.Filename
 	j.mu.Unlock()
 
+	if completed && m.notify {
+		go notifyDone(name)
+	}
 	m.schedule() // a slot freed — promote the next queued job
+}
+
+// notifyDone posts a macOS notification that a download finished.
+func notifyDone(name string) {
+	safe := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name)
+	script := fmt.Sprintf(`display notification "%s" with title "godownloader" subtitle "Download complete"`, safe)
+	exec.Command("osascript", "-e", script).Run()
 }
 
 // Snapshot returns an immutable, point-in-time copy of current job state for
@@ -354,6 +370,27 @@ func (m *Manager) Remove(id string) {
 	os.Remove(metaPath(m.stateDir, id))
 
 	m.schedule() // removing an active job frees a slot
+}
+
+// ClearCompleted removes finished downloads from the list and deletes their
+// metadata (the downloaded files are kept).
+func (m *Manager) ClearCompleted() {
+	m.mu.Lock()
+	kept := m.jobs[:0]
+	var removed []*Job
+	for _, j := range m.jobs {
+		if j.getState() == StateDone {
+			removed = append(removed, j)
+		} else {
+			kept = append(kept, j)
+		}
+	}
+	m.jobs = kept
+	m.mu.Unlock()
+
+	for _, j := range removed {
+		os.Remove(metaPath(m.stateDir, j.ID))
+	}
 }
 
 // PauseAll pauses every running download and waits briefly for them to stop, so

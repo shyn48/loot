@@ -125,6 +125,9 @@ func (m Model) View() string {
 	} else if m.filter != "" {
 		parts = append(parts, sMuted.Render(" Filter: ")+sAccent.Render(m.filter)+sMuted.Render("  (esc to clear)"))
 	}
+	if m.showHelp {
+		parts = append(parts, sMuted.Render(" ↑/k up · ↓/j down · a add (clipboard/batch) · p pause · r resume · d delete · c clear completed · o open · / filter · q quit"))
+	}
 	parts = append(parts, m.footerBar(width))
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }

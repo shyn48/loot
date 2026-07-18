@@ -15,6 +15,7 @@ type Config struct {
 	DownloadDir   string `toml:"download_dir"`
 	MaxActive     int    `toml:"max_active"`
 	SectionSizeMB int    `toml:"section_size_mb"`
+	Notifications bool   `toml:"notifications"`
 }
 
 func defaultConfig() Config {
@@ -23,6 +24,7 @@ func defaultConfig() Config {
 		DownloadDir:   filepath.Join(home, "Downloads"),
 		MaxActive:     defaultMaxActive,
 		SectionSizeMB: 2,
+		Notifications: true,
 	}
 }
 
@@ -94,6 +96,7 @@ func writeDefaultConfig(path string, cfg Config) {
 	content := "# godownloader configuration\n\n" +
 		"download_dir = \"" + cfg.DownloadDir + "\"\n" +
 		"max_active = " + strconv.Itoa(cfg.MaxActive) + "        # simultaneous downloads\n" +
-		"section_size_mb = " + strconv.Itoa(cfg.SectionSizeMB) + "   # ~1 parallel section per N MB (max 20 sections)\n"
+		"section_size_mb = " + strconv.Itoa(cfg.SectionSizeMB) + "   # ~1 parallel section per N MB (max 20 sections)\n" +
+		"notifications = " + strconv.FormatBool(cfg.Notifications) + "   # macOS notification when a download completes\n"
 	os.WriteFile(path, []byte(content), 0o644)
 }

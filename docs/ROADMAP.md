@@ -24,11 +24,13 @@ support is explicitly out of scope.
 - ✅ **Config file** — done. `~/.config/godownloader/config.toml` sets `download_dir` (default
   `~/Downloads`), `max_active`, and `section_size_mb`. Written with defaults on first run.
   (Bandwidth throttle setting still TODO.)
-- **Clipboard add** — grab a URL from the clipboard with a keypress.
-- **Batch add** — multiple URLs at once / import from a text file.
-- **macOS completion notifications** — via `osascript` / `terminal-notifier`.
-- **History management** — ⚠️ meta files persist after completion, so completed downloads accumulate
-  forever and reload on every launch. Add auto-clear on completion or a "clear completed" action.
+- ✅ **Clipboard add** — done. Pressing `a` prefills the input from the clipboard when it's a URL.
+- ✅ **Batch add** — done. The add input accepts multiple whitespace/newline-separated URLs.
+  (Import-from-file could be a follow-up.)
+- ✅ **macOS completion notifications** — done. `osascript` notification on completion, toggled by
+  `notifications` in the config.
+- ✅ **History management** — done. `c` clears completed downloads (removes them + their metadata,
+  keeps the files) via `Manager.ClearCompleted`.
 - **Categories / scheduler** — deferred from the original IDM brainstorm.
 
 ## GUI (giu) parity

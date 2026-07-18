@@ -10,6 +10,7 @@ type Controller interface {
 	Remove(id string)
 	OpenFolder() error
 	Snapshot() []JobStatus
+	ClearCompleted()
 	PauseAll()
 }
 

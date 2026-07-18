@@ -165,6 +165,9 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "o":
 		m.ctrl.OpenFolder()
+	case "c":
+		m.ctrl.ClearCompleted()
+		m.clampCursor()
 	case "?":
 		m.showHelp = !m.showHelp
 	}

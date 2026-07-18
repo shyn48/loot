@@ -13,7 +13,7 @@ type fakeController struct {
 	rows                            []core.JobStatus
 	added, paused, resumed, removed string
 	addedURLs                       []string
-	opened, pausedAll               bool
+	opened, pausedAll, cleared      bool
 	addErr                          error
 }
 
@@ -27,6 +27,7 @@ func (f *fakeController) Resume(id string)           { f.resumed = id }
 func (f *fakeController) Remove(id string)           { f.removed = id }
 func (f *fakeController) OpenFolder() error          { f.opened = true; return nil }
 func (f *fakeController) Snapshot() []core.JobStatus { return f.rows }
+func (f *fakeController) ClearCompleted()            { f.cleared = true }
 func (f *fakeController) PauseAll()                  { f.pausedAll = true }
 
 // Disable real-clipboard reads in tests by default; individual tests override.
@@ -190,6 +191,15 @@ func TestQuitPausesAll(t *testing.T) {
 	updateKey(m, "q")
 	if !fc.pausedAll {
 		t.Fatal("quit should PauseAll")
+	}
+}
+
+func TestClearCompletedKey(t *testing.T) {
+	fc := &fakeController{rows: threeRows()}
+	m := newModel(fc)
+	updateKey(m, "c")
+	if !fc.cleared {
+		t.Fatal("c should clear completed")
 	}
 }
 
