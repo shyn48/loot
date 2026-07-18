@@ -147,7 +147,10 @@ func (j *Job) snapshot(tempDir string) JobStatus {
 }
 
 func (j *Job) sectionFile(tempDir string, i int) string {
-	return filepath.Join(tempDir, fmt.Sprintf("section-%d-%s.tmp", i+1, j.Filename))
+	// Keyed by the job ID (unique), not the filename, so two downloads that
+	// resolve to the same name never share temp files. The ID is persisted in
+	// the meta file, so this stays stable across a restart.
+	return filepath.Join(tempDir, fmt.Sprintf("section-%s-%d.tmp", j.ID, i+1))
 }
 
 // run downloads the job to completion (or returns errPaused on cancel). It is

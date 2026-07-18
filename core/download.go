@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -91,14 +90,6 @@ func GetFileDetails(link string) (FileDetails, error) {
 		if len(getLinkLastPart(link)) > 15 {
 			fileName = strconv.Itoa(int(time.Now().UnixMilli())) + "." + fileType
 		}
-	}
-
-	filePath, err := GetDownloadPath(fileName)
-	if err != nil {
-		return FileDetails{}, err
-	}
-	if _, err := os.Stat(filePath); err == nil {
-		fileName = strconv.Itoa(int(time.Now().UnixMilli())) + "-" + fileName
 	}
 
 	return FileDetails{Name: fileName, Size: size, AcceptRanges: acceptRanges}, nil

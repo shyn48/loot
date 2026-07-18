@@ -110,11 +110,13 @@ func (m *Manager) Add(rawURL string) (string, error) {
 		return "", err
 	}
 
+	m.mu.Lock()
+	name := m.uniqueFilenameLocked(details.Name)
 	j := &Job{
 		ID:           uuid.NewString(),
 		URL:          rawURL,
-		Filename:     details.Name,
-		TargetPath:   filepath.Join(m.downloadDir, details.Name),
+		Filename:     name,
+		TargetPath:   filepath.Join(m.downloadDir, name),
 		Size:         details.Size,
 		AcceptRanges: details.AcceptRanges,
 		TotalSection: 20,
@@ -123,16 +125,40 @@ func (m *Manager) Add(rawURL string) (string, error) {
 	if j.isSegmented() {
 		j.Sections = computeSections(details.Size, j.TotalSection)
 	}
+	m.jobs = append(m.jobs, j)
+	m.mu.Unlock()
+
 	if err := writeMeta(m.stateDir, m.metaFor(j)); err != nil {
 		return "", err
 	}
 
-	m.mu.Lock()
-	m.jobs = append(m.jobs, j)
-	m.mu.Unlock()
-
 	go m.start(j)
 	return j.ID, nil
+}
+
+// uniqueFilenameLocked returns name if free, otherwise "base (n).ext" with the
+// smallest n that avoids both an existing file on disk and any active job's
+// filename. Caller must hold m.mu.
+func (m *Manager) uniqueFilenameLocked(name string) string {
+	ext := filepath.Ext(name)
+	base := name[:len(name)-len(ext)]
+	candidate := name
+	for n := 1; m.nameTakenLocked(candidate); n++ {
+		candidate = fmt.Sprintf("%s (%d)%s", base, n, ext)
+	}
+	return candidate
+}
+
+func (m *Manager) nameTakenLocked(name string) bool {
+	if fileExists(filepath.Join(m.downloadDir, name)) {
+		return true
+	}
+	for _, j := range m.jobs {
+		if j.Filename == name {
+			return true
+		}
+	}
+	return false
 }
 
 // start runs a job to completion and records its terminal state.
