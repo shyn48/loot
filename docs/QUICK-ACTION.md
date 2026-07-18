@@ -15,7 +15,9 @@ it directly. Instead:
 - If loot **isn't running**, the URL waits in the inbox and starts the
   next time you launch it.
 
-The Quick Action is just a "Run Shell Script" workflow that calls `loot add`.
+The Quick Action is a "Run Shell Script" workflow that appends the URL straight
+to the inbox file (`~/.loot/tmp/inbox`) — it deliberately does **not** launch the
+`loot` binary, so there's no launch/permission failure mode.
 
 ## Install
 
@@ -44,7 +46,8 @@ If the prebuilt workflow doesn't show up, make it in ~30 seconds:
 3. Add a **Run Shell Script** action; set **Pass input: as arguments**.
 4. Shell `/bin/zsh`, script:
    ```sh
-   for u in "$@"; do "$HOME/go/bin/loot" add "$u"; done
+   INBOX="$HOME/.loot/tmp"; mkdir -p "$INBOX"
+   for u in "$@"; do printf '%s\n' "$u" >> "$INBOX/inbox"; done
    ```
 5. Save as **Send to Loot**.
 
