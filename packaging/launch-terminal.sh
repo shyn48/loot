@@ -10,14 +10,14 @@ if [ ! -x "$BIN" ]; then
     BIN="$(cd "$(dirname "$0")" && pwd)/loot-bin"
 fi
 
-# do script returns the tab immediately — before the process has started — so we
-# first wait for the tab to become busy, THEN wait for it to finish, and only
-# then close its window. (Closing on the first `busy` read would slam the window
-# shut right after it opened.)
+# Run loot as a normal foreground child of the shell (NOT via exec) so Terminal's
+# `busy` flag stays true while it runs — with exec the shell is replaced and busy
+# reads false immediately, closing the window the instant the TUI appears.
+# Wait for the tab to become busy, then for it to finish, then close its window.
 osascript <<APPLESCRIPT
 tell application "Terminal"
     activate
-    set theTab to do script "exec '$BIN'"
+    set theTab to do script "'$BIN'"
     try
         set waited to 0.0
         repeat until (theTab is busy) or (waited > 5.0)
