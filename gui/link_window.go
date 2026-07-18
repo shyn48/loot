@@ -1,16 +1,12 @@
 package gui
 
 import (
-	"simple-gui/core"
-	"simple-gui/helper"
-
 	g "github.com/AllenDang/giu"
-	"github.com/google/uuid"
+
+	"simple-gui/helper"
 )
 
 func startDownloadClick() {
-	downloadId := uuid.NewString()
-
 	downloadLink := *GetCurrentDownloadLink()
 
 	if !helper.IsValidUrl(downloadLink) {
@@ -19,27 +15,9 @@ func startDownloadClick() {
 	}
 	hideInputWindow()
 
-	details, err := core.GetFileDetails(downloadLink)
-	if err != nil {
+	if _, err := manager.Add(downloadLink); err != nil {
 		SetBoxError(err.Error())
-		return
 	}
-
-	addDownload(GuiDownload{
-		Id:       downloadId,
-		FileName: details.Name,
-		Size:     helper.HumanBytes(details.Size),
-		State:    DownloadStateDownloading,
-	})
-
-	go func(currentLink string, downloadId string, details core.FileDetails) {
-		if err := core.StartDownload(currentLink, details); err != nil {
-			SetBoxError(err.Error())
-			updateDownloadState(downloadId, DownloadStateFailed)
-			return
-		}
-		updateDownloadState(downloadId, DownloadStateDone)
-	}(downloadLink, downloadId, details)
 
 	SetEnterUrlError("")
 	SetCurrentDownloadLink("")
@@ -50,7 +28,6 @@ func linkErrorRow() g.Widget {
 		// Keep vertical space stable whether or not an error is shown.
 		return g.Dummy(0, 4)
 	}
-
 	return coloredLabel(GetEnterUrlError(), colorDanger)
 }
 

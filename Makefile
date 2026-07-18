@@ -1,29 +1,47 @@
-# Shyn Download Manager — build & macOS packaging.
+# godownloader — build & install (terminal TUI + macOS desktop app).
 
 APP_NAME    := Shyn Download Manager
-BINARY      := gownloader
+BINARY      := godownloader
 BUNDLE_ID   := com.shyn.gownloader
 DIST        := dist
 APP         := $(DIST)/$(APP_NAME).app
 ICNS        := packaging/AppIcon.icns
 INSTALL_DIR := /Applications
+GOBIN       := $(shell go env GOPATH)/bin
 
-.PHONY: run build app install icon clean
+.PHONY: run gui test build app install install-cli icon clean
 
-## run: launch the app straight from source (dev)
+## run: launch the TUI straight from source (dev)
 run:
 	go run .
+
+## gui: launch the desktop giu window from source (dev)
+gui:
+	go run . --gui
+
+## test: run the test suite
+test:
+	go test ./...
 
 ## build: compile the standalone binary into dist/
 build:
 	@mkdir -p $(DIST)
 	go build -o $(DIST)/$(BINARY) .
 
-## app: assemble a double-clickable, ad-hoc-signed .app bundle
+## install-cli: put the godownloader TUI command on your PATH
+install-cli: build
+	cp $(DIST)/$(BINARY) "$(GOBIN)/$(BINARY)"
+	@echo "Installed $(BINARY) to $(GOBIN) (make sure it is on your PATH)"
+
+## app: assemble a double-clickable, ad-hoc-signed .app (launches the GUI)
 app: build $(ICNS)
 	@rm -rf "$(APP)"
 	@mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
-	cp $(DIST)/$(BINARY) "$(APP)/Contents/MacOS/$(BINARY)"
+	# The bundle executable is a launcher script that runs the binary with --gui;
+	# the real binary is shipped alongside it as godownloader-bin.
+	cp $(DIST)/$(BINARY) "$(APP)/Contents/MacOS/godownloader-bin"
+	cp packaging/launch-gui.sh "$(APP)/Contents/MacOS/godownloader"
+	chmod +x "$(APP)/Contents/MacOS/godownloader"
 	cp packaging/Info.plist "$(APP)/Contents/Info.plist"
 	cp $(ICNS) "$(APP)/Contents/Resources/AppIcon.icns"
 	# Ad-hoc signature so Gatekeeper allows it to launch on this machine.
