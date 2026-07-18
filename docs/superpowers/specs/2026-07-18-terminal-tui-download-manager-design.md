@@ -1,7 +1,10 @@
 # Terminal TUI Download Manager — Design
 
 **Date:** 2026-07-18
-**Status:** Approved (pending spec review)
+**Status:** ✅ Implemented (and extended). This is the original, historical design; the app is
+now named **Loot** and has grown well past this spec (concurrency queue, retry/backoff, config
+file, ETag resume validation, clipboard/batch add, notifications, Quick Action, etc.). See
+[`docs/ROADMAP.md`](../../ROADMAP.md) for current status and what remains.
 
 ## Goal
 

@@ -1,8 +1,12 @@
-# loot — Roadmap / Deferred Improvements
+# loot — Roadmap
 
-Ideas captured for later. **TUI polish is being done first** (see the reference in
-`docs/tui-reference.png` intent). This project is intentionally **macOS-only** — cross-platform
-support is explicitly out of scope.
+Status of features and deferred ideas. Most of the original plan plus a lot of extras have
+shipped (see the ✅ items below); what remains is genuinely optional polish. This project is
+intentionally **macOS-only** — cross-platform support is explicitly out of scope.
+
+**Remaining (all optional):** bandwidth throttle · disk-space precheck · checksum verification ·
+categories/scheduler · GUI speed/ETA columns · Homebrew/GoReleaser · notarized universal `.app` ·
+rename the internal Go module.
 
 ## Engine / robustness
 - ✅ **Section retry with backoff** — done. Each section retries up to 4× with exponential
@@ -40,9 +44,10 @@ support is explicitly out of scope.
 - Add **speed/ETA columns** to the desktop window so it matches the TUI.
 
 ## Distribution
+- ✅ **README** — done. Front page with a rendered TUI preview; `demo.tape` + `make demo`
+  generate an animated GIF via [vhs](https://github.com/charmbracelet/vhs).
 - **GoReleaser + Homebrew tap** (`brew install shyn48/tap/loot`).
 - **Notarized universal `.app`** for sharing the GUI with other Macs.
-- **README with a TUI GIF**.
 - **Rename the Go module** from the leftover `simple-gui` to `github.com/shyn48/loot`.
 
 ## Explicitly out of scope
