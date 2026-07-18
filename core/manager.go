@@ -190,6 +190,25 @@ func (m *Manager) Pause(id string) {
 	j.mu.Unlock()
 }
 
+// Resume restarts a paused (or resumable-failed) download. Because run() derives
+// each section's progress from its temp file size and requests only the missing
+// range, resume needs no special logic — it just re-enters start(). A
+// non-resumable job restarts from zero (single-stream truncates on re-run).
+func (m *Manager) Resume(id string) {
+	j := m.findJob(id)
+	if j == nil {
+		return
+	}
+	j.mu.Lock()
+	resumable := j.AcceptRanges && j.Size > 0
+	canResume := j.state == StatePaused || (j.state == StateFailed && resumable)
+	j.mu.Unlock()
+	if !canResume {
+		return
+	}
+	go m.start(j)
+}
+
 func (m *Manager) metaFor(j *Job) meta {
 	return meta{
 		ID:           j.ID,
