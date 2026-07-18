@@ -43,16 +43,20 @@ type Job struct {
 	speed          float64 // EWMA bytes/sec
 	lastBytes      int64
 	lastSampleTime time.Time
+	startedAt      time.Time // first time the job entered downloading
 }
 
 // JobStatus is an immutable snapshot of a Job for rendering by the front-ends.
 type JobStatus struct {
 	ID, Name         string
+	URL, Path        string
+	Connections      int
 	Size, Downloaded int64
 	Percent, Speed   float64
 	ETASeconds       int
 	State            JobState
 	Resumable        bool
+	StartedAt        time.Time
 	Err              string
 }
 
@@ -120,6 +124,7 @@ func (j *Job) measured(tempDir string, state JobState) int64 {
 func (j *Job) snapshot(tempDir string) JobStatus {
 	j.mu.Lock()
 	state, speed := j.state, j.speed
+	startedAt := j.startedAt
 	var errStr string
 	if j.err != nil {
 		errStr = j.err.Error()
@@ -133,16 +138,20 @@ func (j *Job) snapshot(tempDir string) JobStatus {
 		pct = float64(downloaded) / float64(j.Size) * 100
 	}
 	return JobStatus{
-		ID:         j.ID,
-		Name:       j.Filename,
-		Size:       j.Size,
-		Downloaded: downloaded,
-		Percent:    pct,
-		Speed:      speed,
-		ETASeconds: etaSeconds(j.Size-downloaded, speed),
-		State:      state,
-		Resumable:  j.AcceptRanges && j.Size > 0,
-		Err:        errStr,
+		ID:          j.ID,
+		Name:        j.Filename,
+		URL:         j.URL,
+		Path:        j.TargetPath,
+		Connections: j.TotalSection,
+		Size:        j.Size,
+		Downloaded:  downloaded,
+		Percent:     pct,
+		Speed:       speed,
+		ETASeconds:  etaSeconds(j.Size-downloaded, speed),
+		State:       state,
+		Resumable:   j.AcceptRanges && j.Size > 0,
+		StartedAt:   startedAt,
+		Err:         errStr,
 	}
 }
 

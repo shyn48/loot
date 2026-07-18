@@ -170,6 +170,9 @@ func (m *Manager) start(j *Job) {
 	j.state = StateDownloading
 	j.lastBytes = seed
 	j.lastSampleTime = time.Now()
+	if j.startedAt.IsZero() {
+		j.startedAt = time.Now() // first start only; preserved across resume
+	}
 	j.mu.Unlock()
 
 	err := j.run(ctx, m.stateDir)
