@@ -55,20 +55,50 @@ func (m Model) View() string {
 	if width < 60 {
 		width = 100 // fallback before the first WindowSizeMsg
 	}
+	height := m.h
+	if height < 16 {
+		height = 30
+	}
+	if width < 74 {
+		return sMuted.Render("Terminal too narrow — widen to at least 74 columns.")
+	}
 	inner := width - 2
+
+	sel, hasSel := m.selected()
+	showDetail := hasSel && height >= 27
+
+	// Height budget: header(3) + footer(2) + optional detail + optional input line.
+	extra := 0
+	if m.errMsg != "" {
+		extra++
+	}
+	if m.adding || m.filtering || m.filter != "" {
+		extra++
+	}
+	detailH := 0
+	if showDetail {
+		detailH = 7
+	}
+	listPanelH := height - 3 - 2 - detailH - extra
+	if listPanelH < 6 {
+		listPanelH = 6
+	}
+	maxRows := listPanelH - 4 // borders(2) + column header + dashed rule
+	if maxRows < 1 {
+		maxRows = 1
+	}
 
 	parts := []string{m.headerPanel(inner)}
 	if m.errMsg != "" {
 		parts = append(parts, sDanger.Render(" ⚠ "+m.errMsg))
 	}
-	parts = append(parts, m.listPanel(inner))
-	if sel, ok := m.selected(); ok && m.h >= 26 {
+	parts = append(parts, m.listPanel(inner, maxRows))
+	if showDetail {
 		parts = append(parts, m.detailPanel(sel, inner))
 	}
 	if m.adding {
 		parts = append(parts, sText.Render(" Add URL: ")+m.input.View())
-	}
-	if m.filtering {
+	} else if m.filtering {
 		parts = append(parts, sText.Render(" Filter: ")+m.input.View())
 	} else if m.filter != "" {
 		parts = append(parts, sMuted.Render(" Filter: ")+sAccent.Render(m.filter)+sMuted.Render("  (esc to clear)"))
@@ -113,7 +143,7 @@ func (m Model) nameWidth(inner int) int {
 	return w
 }
 
-func (m Model) listPanel(inner int) string {
+func (m Model) listPanel(inner, maxRows int) string {
 	wName := m.nameWidth(inner)
 	rows := m.visible()
 	var b strings.Builder
@@ -132,16 +162,44 @@ func (m Model) listPanel(inner int) string {
 		return box(b.String(), inner)
 	}
 
+	// Window the rows around the cursor so the list never overflows.
+	start, end := windowRows(len(rows), m.cursor, maxRows)
 	boundary := activeCount(rows)
-	for i, r := range rows {
+	if start > 0 {
+		b.WriteString("\n")
+		b.WriteString(sMuted.Render(fmt.Sprintf("  ↑ %d more", start)))
+	}
+	for i := start; i < end; i++ {
 		b.WriteString("\n")
 		if i == boundary && boundary > 0 && boundary < len(rows) {
 			b.WriteString(sBorder.Render(strings.Repeat("╌", inner)))
 			b.WriteString("\n")
 		}
-		b.WriteString(m.renderRow(i, r, wName))
+		b.WriteString(m.renderRow(i, rows[i], wName))
+	}
+	if end < len(rows) {
+		b.WriteString("\n")
+		b.WriteString(sMuted.Render(fmt.Sprintf("  ↓ %d more", len(rows)-end)))
 	}
 	return box(b.String(), inner)
+}
+
+// windowRows returns the [start,end) slice of `total` rows to show given the
+// cursor and how many rows fit, keeping the cursor within the window.
+func windowRows(total, cursor, maxRows int) (int, int) {
+	if maxRows >= total {
+		return 0, total
+	}
+	start := cursor - maxRows/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxRows
+	if end > total {
+		end = total
+		start = end - maxRows
+	}
+	return start, end
 }
 
 func columnHeader(wName int) string {

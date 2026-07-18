@@ -33,6 +33,21 @@ func TestSparkline(t *testing.T) {
 	}
 }
 
+func TestWindowRows(t *testing.T) {
+	if s, e := windowRows(3, 0, 10); s != 0 || e != 3 {
+		t.Fatalf("all fit: got %d,%d", s, e)
+	}
+	if s, e := windowRows(20, 0, 6); s != 0 || e != 6 {
+		t.Fatalf("cursor at top: got %d,%d", s, e)
+	}
+	if s, e := windowRows(20, 19, 6); s != 14 || e != 20 {
+		t.Fatalf("cursor at bottom: got %d,%d", s, e)
+	}
+	if s, e := windowRows(20, 10, 6); s != 7 || e != 13 {
+		t.Fatalf("cursor middle: got %d,%d", s, e)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	if truncate("short", 10) != "short" {
 		t.Fatal("no truncation when it fits")
