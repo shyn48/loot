@@ -6,8 +6,9 @@ support is explicitly out of scope.
 
 ## Engine / robustness
 - **Section retry with backoff** — one flaky section shouldn't fail the whole download.
-- **Concurrency queue** — cap max active downloads; the rest sit in `StateQueued`. (Also makes the
-  TUI "Queued" state actually populate.)
+- ✅ **Concurrency queue** — done. Manager caps active downloads at `maxActive` (default 3); extras
+  wait in `StateQueued` and auto-promote when a slot frees. Lights up the TUI "Queued" column.
+  (Making `maxActive` user-configurable is part of the config-file item below.)
 - **Bandwidth throttle** — per-download and global.
 - **Adaptive section count** — don't split a 50 KB file into 20 sections.
 - **`Content-Disposition` filename** — use the server-provided name instead of guessing from the URL.

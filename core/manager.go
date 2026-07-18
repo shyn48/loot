@@ -22,10 +22,13 @@ type Manager struct {
 	jobs        []*Job
 	downloadDir string
 	stateDir    string
+	maxActive   int // cap on simultaneously-downloading jobs
 
 	done     chan struct{}
 	closeOne sync.Once
 }
+
+const defaultMaxActive = 3
 
 // NewManager resolves the standard download/temp directories, creates them, and
 // returns a ready manager. (Folds the old core.Start dir-setup.)
@@ -49,9 +52,34 @@ func newManager(downloadDir, stateDir string) (*Manager, error) {
 	if err := os.MkdirAll(stateDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	m := &Manager{downloadDir: downloadDir, stateDir: stateDir, done: make(chan struct{})}
+	m := &Manager{downloadDir: downloadDir, stateDir: stateDir, maxActive: defaultMaxActive, done: make(chan struct{})}
 	go m.sampleLoop()
 	return m, nil
+}
+
+// schedule promotes queued jobs to downloading while a slot is free. A queued
+// job is claimed (state set to downloading) under the lock before its goroutine
+// launches, so concurrent schedule calls never double-start the same job.
+func (m *Manager) schedule() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	active := 0
+	for _, j := range m.jobs {
+		switch j.getState() {
+		case StateDownloading, StateMerging:
+			active++
+		}
+	}
+	for _, j := range m.jobs {
+		if active >= m.maxActive {
+			break
+		}
+		if j.getState() == StateQueued {
+			j.setState(StateDownloading)
+			active++
+			go m.start(j)
+		}
+	}
 }
 
 // sampleLoop periodically updates each running job's transfer speed until Close.
@@ -132,7 +160,7 @@ func (m *Manager) Add(rawURL string) (string, error) {
 		return "", err
 	}
 
-	go m.start(j)
+	m.schedule() // starts now if under the cap, otherwise leaves it queued
 	return j.ID, nil
 }
 
@@ -188,17 +216,19 @@ func (m *Manager) start(j *Job) {
 		j.state = StateDone
 	}
 	j.mu.Unlock()
+
+	m.schedule() // a slot freed — promote the next queued job
 }
 
-// Snapshot returns an immutable copy of current job state for rendering.
+// Snapshot returns an immutable, point-in-time copy of current job state for
+// rendering. The lock is held throughout so the view is consistent with the
+// scheduler (e.g. the number of downloading jobs never appears to exceed the
+// cap due to a promotion happening mid-iteration).
 func (m *Manager) Snapshot() []JobStatus {
 	m.mu.Lock()
-	jobs := make([]*Job, len(m.jobs))
-	copy(jobs, m.jobs)
-	m.mu.Unlock()
-
-	out := make([]JobStatus, len(jobs))
-	for i, j := range jobs {
+	defer m.mu.Unlock()
+	out := make([]JobStatus, len(m.jobs))
+	for i, j := range m.jobs {
 		out[i] = j.snapshot(m.stateDir)
 	}
 	return out
@@ -232,11 +262,14 @@ func (m *Manager) Resume(id string) {
 	j.mu.Lock()
 	resumable := j.AcceptRanges && j.Size > 0
 	canResume := j.state == StatePaused || (j.state == StateFailed && resumable)
+	if canResume {
+		j.state = StateQueued // re-enter the queue; schedule respects the cap
+	}
 	j.mu.Unlock()
 	if !canResume {
 		return
 	}
-	go m.start(j)
+	m.schedule()
 }
 
 // LoadPersisted rebuilds jobs from metadata left on disk by a previous run.
@@ -303,6 +336,8 @@ func (m *Manager) Remove(id string) {
 		os.Remove(target.TargetPath) // partial single-stream file
 	}
 	os.Remove(metaPath(m.stateDir, id))
+
+	m.schedule() // removing an active job frees a slot
 }
 
 // PauseAll pauses every running download and waits briefly for them to stop, so
