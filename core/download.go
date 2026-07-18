@@ -84,8 +84,8 @@ func GetFileDetails(link string) (FileDetails, error) {
 	fileName := getLinkLastPart(link)
 
 	switch {
-	case doesLinkIncludeFileName(link, fileType):
-		// URL already ends in the right extension; use it as-is.
+	case linkHasExtension(link):
+		// URL already ends in a filename with an extension; use it as-is.
 	case fileType != "":
 		fileName += "." + fileType
 		if len(getLinkLastPart(link)) > 15 {

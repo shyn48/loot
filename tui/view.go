@@ -79,6 +79,11 @@ func (m Model) View() string {
 	b.WriteString(mutedStyle.Render(fmt.Sprintf("%d active · %s/s", active, helper.HumanBytes(int(totalSpeed)))))
 	b.WriteString("\n\n")
 
+	if m.errMsg != "" {
+		b.WriteString(dangerStyle.Render("⚠ " + m.errMsg))
+		b.WriteString("\n\n")
+	}
+
 	if len(m.rows) == 0 {
 		b.WriteString(mutedStyle.Render("No downloads yet — press 'a' to add one."))
 		b.WriteString("\n\n")

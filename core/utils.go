@@ -21,11 +21,13 @@ func getLinkLastPart(link string) string {
 	return urlLastPart
 }
 
-func doesLinkIncludeFileName(link string, contentType string) bool {
-	linkLastPart := getLinkLastPart(link)
-	splittedLastPart := strings.Split(linkLastPart, ".")
-
-	return len(splittedLastPart) >= 2 && splittedLastPart[len(splittedLastPart)-1] == contentType
+// linkHasExtension reports whether the URL's last path segment already carries a
+// file extension (a dot that is neither the first nor the last character), e.g.
+// "file.zip" or "a.b.mp4" but not "download" or "dir/".
+func linkHasExtension(link string) bool {
+	last := getLinkLastPart(link)
+	i := strings.LastIndex(last, ".")
+	return i > 0 && i < len(last)-1
 }
 
 func GetDownloadPath(fileName string) (string, error) {

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,9 +13,10 @@ type fakeController struct {
 	rows                            []core.JobStatus
 	added, paused, resumed, removed string
 	opened, pausedAll               bool
+	addErr                          error
 }
 
-func (f *fakeController) Add(url string) (string, error) { f.added = url; return "new", nil }
+func (f *fakeController) Add(url string) (string, error) { f.added = url; return "new", f.addErr }
 func (f *fakeController) Pause(id string)                { f.paused = id }
 func (f *fakeController) Resume(id string)               { f.resumed = id }
 func (f *fakeController) Remove(id string)               { f.removed = id }
@@ -102,6 +104,20 @@ func TestAddModeFlow(t *testing.T) {
 	m, _ = updateKey(m, "enter")
 	if fc.added != "http://x/f" || m.adding {
 		t.Fatalf("added=%q adding=%v", fc.added, m.adding)
+	}
+}
+
+func TestAddErrorSurfaced(t *testing.T) {
+	fc := &fakeController{addErr: errors.New("status code: 403")}
+	m := newModel(fc)
+	m, _ = updateKey(m, "a")
+	m = typeString(m, "http://x/f")
+	m, _ = updateKey(m, "enter")
+	if m.errMsg != "status code: 403" {
+		t.Fatalf("errMsg = %q, want the Add error", m.errMsg)
+	}
+	if m.adding {
+		t.Fatal("should exit add mode even on error")
 	}
 }
 

@@ -19,6 +19,7 @@ type Model struct {
 	adding   bool
 	input    textinput.Model
 	showHelp bool
+	errMsg   string
 	w, h     int
 }
 
@@ -73,6 +74,7 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "a":
 		m.adding = true
+		m.errMsg = ""
 		m.input.Reset()
 		m.input.Focus()
 		return m, textinput.Blink
@@ -100,7 +102,11 @@ func (m Model) updateAdding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		if url := strings.TrimSpace(m.input.Value()); url != "" {
-			m.ctrl.Add(url)
+			if _, err := m.ctrl.Add(url); err != nil {
+				m.errMsg = err.Error()
+			} else {
+				m.errMsg = ""
+			}
 		}
 		m.input.Reset()
 		m.adding = false
