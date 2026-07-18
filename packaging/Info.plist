@@ -9,7 +9,7 @@
 	<key>CFBundleIdentifier</key>
 	<string>com.shyn.gownloader</string>
 	<key>CFBundleExecutable</key>
-	<string>gownloader</string>
+	<string>godownloader</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
