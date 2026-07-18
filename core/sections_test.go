@@ -30,6 +30,23 @@ func TestRemainingRange(t *testing.T) {
 	}
 }
 
+func TestSectionsForSize(t *testing.T) {
+	const per = 2 * 1024 * 1024
+	cases := map[int64]int{
+		0:                 1,
+		500 * 1024:        1,  // <2MB → single
+		2 * 1024 * 1024:   1,  // exactly 2MB → 1
+		10 * 1024 * 1024:  5,  // ~5
+		100 * 1024 * 1024: 20, // capped
+		4_000_000_000:     20, // capped
+	}
+	for size, want := range cases {
+		if got := sectionsForSize(size, per); got != want {
+			t.Errorf("sectionsForSize(%d) = %d, want %d", size, got, want)
+		}
+	}
+}
+
 func TestETA(t *testing.T) {
 	if etaSeconds(1000, 0) != -1 {
 		t.Fatal("zero speed → -1")

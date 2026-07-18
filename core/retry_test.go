@@ -49,6 +49,23 @@ func flakyRangeServer(body []byte) *httptest.Server {
 	}))
 }
 
+func TestContentDispositionFilename(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Disposition", `attachment; filename="real-name.bin"`)
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	fd, err := GetFileDetails(srv.URL + "/ignored-path.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fd.Name != "real-name.bin" {
+		t.Fatalf("name = %q, want real-name.bin (from Content-Disposition)", fd.Name)
+	}
+}
+
 func TestSectionRetrySucceeds(t *testing.T) {
 	body := makeBody(20000)
 	srv := flakyRangeServer(body)

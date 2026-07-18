@@ -18,17 +18,21 @@ import (
 // Manager owns all download state and is the single source of truth shared by
 // both front-ends (the TUI and the giu GUI). It is safe for concurrent use.
 type Manager struct {
-	mu          sync.Mutex
-	jobs        []*Job
-	downloadDir string
-	stateDir    string
-	maxActive   int // cap on simultaneously-downloading jobs
+	mu              sync.Mutex
+	jobs            []*Job
+	downloadDir     string
+	stateDir        string
+	maxActive       int   // cap on simultaneously-downloading jobs
+	bytesPerSection int64 // target bytes per parallel section
 
 	done     chan struct{}
 	closeOne sync.Once
 }
 
-const defaultMaxActive = 3
+const (
+	defaultMaxActive       = 3
+	defaultBytesPerSection = 2 * 1024 * 1024
+)
 
 // NewManager resolves the standard download/temp directories, creates them, and
 // returns a ready manager. (Folds the old core.Start dir-setup.)
@@ -52,7 +56,7 @@ func newManager(downloadDir, stateDir string) (*Manager, error) {
 	if err := os.MkdirAll(stateDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	m := &Manager{downloadDir: downloadDir, stateDir: stateDir, maxActive: defaultMaxActive, done: make(chan struct{})}
+	m := &Manager{downloadDir: downloadDir, stateDir: stateDir, maxActive: defaultMaxActive, bytesPerSection: defaultBytesPerSection, done: make(chan struct{})}
 	go m.sampleLoop()
 	return m, nil
 }
@@ -138,6 +142,11 @@ func (m *Manager) Add(rawURL string) (string, error) {
 		return "", err
 	}
 
+	totalSection := 1
+	if details.AcceptRanges && details.Size > 0 {
+		totalSection = sectionsForSize(details.Size, m.bytesPerSection)
+	}
+
 	m.mu.Lock()
 	name := m.uniqueFilenameLocked(details.Name)
 	j := &Job{
@@ -147,7 +156,7 @@ func (m *Manager) Add(rawURL string) (string, error) {
 		TargetPath:   filepath.Join(m.downloadDir, name),
 		Size:         details.Size,
 		AcceptRanges: details.AcceptRanges,
-		TotalSection: 20,
+		TotalSection: totalSection,
 		state:        StateQueued,
 	}
 	if j.isSegmented() {
@@ -295,7 +304,11 @@ func (m *Manager) LoadPersisted() error {
 			Sections:     md.Sections,
 			TotalSection: md.TotalSection,
 		}
-		if fileExists(j.TargetPath) && !j.hasTempFiles(m.stateDir) {
+		// Done only if the final file is present, complete (full size when
+		// known), and no partial temp files remain. Otherwise it is resumable.
+		complete := fileExists(j.TargetPath) && !j.hasTempFiles(m.stateDir) &&
+			(j.Size == 0 || fileSize(j.TargetPath) >= j.Size)
+		if complete {
 			j.state = StateDone
 		} else {
 			j.state = StatePaused

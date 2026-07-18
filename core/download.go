@@ -2,8 +2,10 @@ package core
 
 import (
 	"fmt"
+	"mime"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +73,16 @@ func GetFileDetails(link string) (FileDetails, error) {
 	}
 
 	acceptRanges := strings.EqualFold(resp.Header.Get("Accept-Ranges"), "bytes")
+
+	// Prefer the server-provided filename (Content-Disposition) when present;
+	// it is more reliable than guessing from the URL.
+	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			if fn := strings.TrimSpace(params["filename"]); fn != "" {
+				return FileDetails{Name: filepath.Base(fn), Size: size, AcceptRanges: acceptRanges}, nil
+			}
+		}
+	}
 
 	// Derive the file extension from Content-Type, guarding against headers that
 	// are missing or malformed (a naive Split(...)[1] would panic on those).

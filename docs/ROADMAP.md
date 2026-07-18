@@ -12,8 +12,10 @@ support is explicitly out of scope.
   wait in `StateQueued` and auto-promote when a slot frees. Lights up the TUI "Queued" column.
   (Making `maxActive` user-configurable is part of the config-file item below.)
 - **Bandwidth throttle** — per-download and global.
-- **Adaptive section count** — don't split a 50 KB file into 20 sections.
-- **`Content-Disposition` filename** — use the server-provided name instead of guessing from the URL.
+- ✅ **Adaptive section count** — done. ~1 section per 2 MiB (Manager.bytesPerSection), capped at
+  20; small files use a single stream.
+- ✅ **`Content-Disposition` filename** — done. Uses the server-provided filename when present,
+  falling back to URL-based guessing.
 - **`ETag`/`Last-Modified` resume validation** — restart from zero if the file changed server-side.
 - **Disk-space precheck** before starting a download.
 - **Checksum verification** — server `Content-MD5` or a user-supplied hash.

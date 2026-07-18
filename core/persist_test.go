@@ -22,6 +22,7 @@ func TestLoadPersistedResumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	m1.bytesPerSection = 4096
 	id, err := m1.Add(rs.URL + "/f.bin")
 	if err != nil {
 		t.Fatal(err)

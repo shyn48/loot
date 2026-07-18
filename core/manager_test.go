@@ -11,6 +11,7 @@ func newTestManager(t *testing.T) *Manager {
 	if err != nil {
 		t.Fatal(err)
 	}
+	m.bytesPerSection = 4096 // segment even the small bodies used in tests
 	t.Cleanup(func() { m.Close() })
 	return m
 }

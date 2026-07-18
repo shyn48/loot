@@ -21,6 +21,23 @@ func computeSections(size int64, n int) [][2]int64 {
 	return secs
 }
 
+// sectionsForSize picks how many parallel sections to use for a download of the
+// given size: roughly one per `perSection` bytes, capped at 20, minimum 1. Small
+// files use a single stream rather than being split pointlessly.
+func sectionsForSize(size, perSection int64) int {
+	if size <= 0 || perSection <= 0 {
+		return 1
+	}
+	n := int(size / perSection)
+	if n < 1 {
+		n = 1
+	}
+	if n > 20 {
+		n = 20
+	}
+	return n
+}
+
 // remainingRange returns the byte range still needed for a section given how
 // many bytes are already on disk, and whether anything remains.
 func remainingRange(sec [2]int64, have int64) (start, end int64, ok bool) {
