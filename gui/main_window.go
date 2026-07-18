@@ -35,28 +35,37 @@ func openDownloadFolder() {
 }
 
 func statusCell(download GuiDownload) g.Widget {
-	if download.State == DownloadStateDownloading {
+	switch download.State {
+	case DownloadStateDownloading:
 		return coloredLabel(fmt.Sprintf("Downloading%s", downloadingDots()), colorAccent)
+	case DownloadStateFailed:
+		return coloredLabel("Failed", colorDanger)
+	default:
+		return coloredLabel("Done", colorSuccess)
 	}
+}
 
-	return coloredLabel("Done", colorSuccess)
+func removeButton(id string) g.Widget {
+	return g.Style().
+		SetColor(g.StyleColorButtonHovered, colorDanger).
+		To(g.Button("Remove").OnClick(func() {
+			removeDownload(id)
+		}))
 }
 
 func actionsCell(download GuiDownload) g.Widget {
-	if download.State == DownloadStateDownloading {
+	switch download.State {
+	case DownloadStateDownloading:
 		return coloredLabel("in progress", colorTextMuted)
+	case DownloadStateFailed:
+		// No completed file to open; only allow clearing the row.
+		return removeButton(download.Id)
+	default:
+		return g.Row(
+			g.Button("Open folder").OnClick(openDownloadFolder),
+			removeButton(download.Id),
+		)
 	}
-
-	currentID := download.Id
-
-	return g.Row(
-		g.Button("Open folder").OnClick(openDownloadFolder),
-		g.Style().
-			SetColor(g.StyleColorButtonHovered, colorDanger).
-			To(g.Button("Remove").OnClick(func() {
-				removeDownload(currentID)
-			})),
-	)
 }
 
 func buildTableRows() []*g.TableRowWidget {

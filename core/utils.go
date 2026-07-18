@@ -7,6 +7,9 @@ import (
 )
 
 func getLinkLastPart(link string) string {
+	if link == "" {
+		return ""
+	}
 	if string(link[len(link)-1]) == "/" {
 		_, newLink := helper.Pop([]rune(link))
 		link = string(newLink)

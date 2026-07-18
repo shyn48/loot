@@ -19,7 +19,7 @@ func startDownloadClick() {
 	}
 	hideInputWindow()
 
-	fileName, size, err := core.GetFileDetails(downloadLink)
+	details, err := core.GetFileDetails(downloadLink)
 	if err != nil {
 		SetBoxError(err.Error())
 		return
@@ -27,18 +27,19 @@ func startDownloadClick() {
 
 	addDownload(GuiDownload{
 		Id:       downloadId,
-		FileName: fileName,
-		Size:     helper.HumanBytes(size),
+		FileName: details.Name,
+		Size:     helper.HumanBytes(details.Size),
 		State:    DownloadStateDownloading,
 	})
 
-	go func(currentLink string, downloadId string) {
-		err := core.StartDownload(currentLink)
-		if err != nil {
+	go func(currentLink string, downloadId string, details core.FileDetails) {
+		if err := core.StartDownload(currentLink, details); err != nil {
 			SetBoxError(err.Error())
+			updateDownloadState(downloadId, DownloadStateFailed)
+			return
 		}
 		updateDownloadState(downloadId, DownloadStateDone)
-	}(downloadLink, downloadId)
+	}(downloadLink, downloadId, details)
 
 	SetEnterUrlError("")
 	SetCurrentDownloadLink("")

@@ -2,7 +2,8 @@ package core
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -11,6 +12,17 @@ import (
 	"time"
 )
 
+// httpClient uses connection-level timeouts rather than an overall
+// Client.Timeout: a stalled connection or slow server fails fast, but a large
+// (and therefore legitimately slow) response body is never cut off mid-download.
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext:           (&net.Dialer{Timeout: 15 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	},
+}
+
 type Download struct {
 	Url          string
 	TargetPath   string
@@ -18,17 +30,29 @@ type Download struct {
 	TotalSection int
 }
 
+// FileDetails is the result of a single HEAD probe: it is resolved once (in the
+// GUI, to display the row) and then passed to StartDownload so the download uses
+// the exact same filename and never issues a second HEAD request.
+type FileDetails struct {
+	Name         string
+	Size         int
+	AcceptRanges bool
+}
+
 func (d Download) getFileInfo() (*http.Response, error) {
-	fmt.Println("Making connection")
 	r, err := d.getNewRequest("HEAD")
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpClient.Do(r)
 	if err != nil {
 		return nil, err
 	}
+	// A HEAD response has no body, but it must still be closed to release the
+	// connection. Headers remain readable after Close.
+	resp.Body.Close()
+
 	if resp.StatusCode > 299 {
 		return nil, fmt.Errorf("status code: %d", resp.StatusCode)
 	}
@@ -41,35 +65,39 @@ func (d Download) DownloadSingleThreaded() error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpClient.Do(r)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	bytes, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode > 299 {
+		return fmt.Errorf("status code: %d", resp.StatusCode)
+	}
+
+	f, err := os.OpenFile(d.TargetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
-	err = ioutil.WriteFile(d.TargetPath, bytes, os.ModePerm)
-	if err != nil {
+	if _, err := io.Copy(f, resp.Body); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (d Download) Do(size int) error {
-	if size == 0 {
+func (d Download) Do(size int, acceptRanges bool) error {
+	// Fall back to a plain single-stream download when segmented download is
+	// impossible or pointless: unknown size, no server range support, or a file
+	// too small to split into TotalSection non-empty pieces.
+	if size == 0 || !acceptRanges || d.TotalSection <= 1 || size < d.TotalSection {
 		return d.DownloadSingleThreaded()
 	}
 
-	fmt.Printf("Downloading %d bytes\n", size)
-
 	var sections = make([][2]int, d.TotalSection)
 	eachSize := size / d.TotalSection
-	fmt.Printf("Each section is %d bytes\n", eachSize)
 
 	for i := range sections {
 		if i == 0 {
@@ -90,47 +118,47 @@ func (d Download) Do(size int) error {
 	}
 
 	wg := sync.WaitGroup{}
+	// Each goroutine writes only its own index, so this slice needs no lock.
+	errs := make([]error, d.TotalSection)
 
 	for i, section := range sections {
 		wg.Add(1)
 		go func(i int, section [2]int) {
 			defer wg.Done()
-			err := d.downloadSection(i, section[0], section[1])
-			if err != nil {
-				// todo handle gracefully
-				panic(err)
-			}
+			errs[i] = d.downloadSection(i, section[0], section[1])
 		}(i, section)
 	}
 
 	wg.Wait()
 
-	err := d.mergeFiles(sections)
-	if err != nil {
-		return err
+	for _, e := range errs {
+		if e != nil {
+			// Leave no partial temp files behind on failure.
+			d.cleanupTempFiles(len(sections))
+			return e
+		}
 	}
 
-	return nil
+	return d.mergeFiles(sections)
 }
 
 func (d Download) downloadSection(index int, startByte int, endByte int) error {
-	fmt.Printf("Downloading section %d\n", index+1)
 	r, err := d.getNewRequest("GET")
 	if err != nil {
 		return err
 	}
 	r.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", startByte, endByte))
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpClient.Do(r)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	fmt.Printf("Downloaded %v bytes for section %v: %v\n", resp.Header.Get("Content-Length"), index+1, []int{startByte, endByte})
 
-	// todo stream data directly to file
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
+	// If the server ignored the Range header it returns 200 with the FULL body.
+	// Writing that into every section would produce a corrupt, oversized merge,
+	// so treat anything other than 206 Partial Content as a hard error.
+	if resp.StatusCode != http.StatusPartialContent {
+		return fmt.Errorf("section %d: server did not honor range request (status %d)", index+1, resp.StatusCode)
 	}
 
 	tempPath, err := GetTempPath()
@@ -138,8 +166,14 @@ func (d Download) downloadSection(index int, startByte int, endByte int) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(fmt.Sprintf("%s/section-%v-%s.tmp", tempPath, index+1, d.Filename), bytes, os.ModePerm)
+	f, err := os.OpenFile(d.sectionFile(tempPath, index), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Stream straight to disk instead of buffering the whole section in memory.
+	if _, err := io.Copy(f, resp.Body); err != nil {
 		return err
 	}
 
@@ -157,8 +191,14 @@ func (d Download) getNewRequest(method string) (*http.Request, error) {
 	return r, nil
 }
 
+func (d Download) sectionFile(tempPath string, index int) string {
+	return fmt.Sprintf("%s/section-%d-%s.tmp", tempPath, index+1, d.Filename)
+}
+
 func (d Download) mergeFiles(sections [][2]int) error {
-	f, err := os.OpenFile(d.TargetPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+	// O_TRUNC (not O_APPEND) so a stale file at this path is overwritten rather
+	// than appended to, which would corrupt the result.
+	f, err := os.OpenFile(d.TargetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -170,109 +210,99 @@ func (d Download) mergeFiles(sections [][2]int) error {
 	}
 
 	for i := range sections {
-		fmt.Printf("Merging section %v\n", i+1)
-		// todo stream sections to write instead of loading to memory
-		b, err := ioutil.ReadFile(fmt.Sprintf("%s/section-%v-%s.tmp", tempPath, i+1, d.Filename))
+		sf, err := os.Open(d.sectionFile(tempPath, i))
 		if err != nil {
 			return err
 		}
-		n, err := f.Write(b)
+		_, err = io.Copy(f, sf)
+		sf.Close()
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Merged %v bytes\n", n)
 	}
 
-	fmt.Println("Merging complete! Deleting tmp files...")
-	go func() {
-		for i := range sections {
-			err := os.Remove(fmt.Sprintf("%s/section-%v-%s.tmp", tempPath, i+1, d.Filename))
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-	}()
+	d.cleanupTempFiles(len(sections))
 
 	return nil
 }
 
-func GetFileDetails(link string) (name string, size int, err error) {
+func (d Download) cleanupTempFiles(count int) {
+	tempPath, err := GetTempPath()
+	if err != nil {
+		return
+	}
+	for i := 0; i < count; i++ {
+		os.Remove(d.sectionFile(tempPath, i))
+	}
+}
+
+func GetFileDetails(link string) (FileDetails, error) {
 	d := Download{
 		Url: link,
 	}
 
 	resp, err := d.getFileInfo()
 	if err != nil {
-		return "", 0, err
+		return FileDetails{}, err
 	}
 
+	var size int
 	if resp.Header.Get("Content-Length") != "" {
 		size, err = strconv.Atoi(resp.Header.Get("Content-Length"))
 		if err != nil {
-			return "", 0, err
+			return FileDetails{}, err
 		}
 	}
 
-	fileType := strings.Split(resp.Header.Get("Content-Type"), "/")[1]
+	acceptRanges := strings.EqualFold(resp.Header.Get("Accept-Ranges"), "bytes")
 
-	if len(strings.Split(fileType, ";")) > 0 {
-		fileType = strings.Split(fileType, ";")[0]
+	// Derive the file extension from Content-Type, guarding against headers that
+	// are missing or malformed (the naive Split(...)[1] would panic on those).
+	var fileType string
+	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "/") {
+		fileType = strings.SplitN(strings.SplitN(ct, ";", 2)[0], "/", 2)[1]
+		fileType = strings.TrimSpace(fileType)
 	}
 
-	var fileName string
+	fileName := getLinkLastPart(link)
 
-	if doesLinkIncludeFileName(link, fileType) {
-		fileName = getLinkLastPart(link)
-	} else {
-		fileName = getLinkLastPart(link) + "." + fileType
-
+	switch {
+	case doesLinkIncludeFileName(link, fileType):
+		// URL already ends in the right extension; use it as-is.
+	case fileType != "":
+		fileName += "." + fileType
 		if len(getLinkLastPart(link)) > 15 {
-			currentUnixTime := strconv.Itoa(int(time.Now().UnixMilli()))
-			fileName = currentUnixTime + "." + fileType
+			fileName = strconv.Itoa(int(time.Now().UnixMilli())) + "." + fileType
 		}
 	}
 
 	filePath, err := GetDownloadPath(fileName)
 	if err != nil {
-		return "", 0, err
+		return FileDetails{}, err
 	}
 
 	if _, err := os.Stat(filePath); err == nil {
-		currentUnixTime := strconv.Itoa(int(time.Now().UnixMilli()))
-
-		fileName = currentUnixTime + "-" + fileName
+		fileName = strconv.Itoa(int(time.Now().UnixMilli())) + "-" + fileName
 	}
 
-	return fileName, size, nil
+	return FileDetails{Name: fileName, Size: size, AcceptRanges: acceptRanges}, nil
 }
 
-func StartDownload(link string) error {
-	startTime := time.Now()
+// StartDownload runs the download for a link whose details were already resolved
+// (by the caller's earlier GetFileDetails call), so the on-disk filename matches
+// exactly what the UI showed and no second HEAD request is made.
+func StartDownload(link string, details FileDetails) error {
+	downloadPath, err := GetDownloadPath(details.Name)
+	if err != nil {
+		return err
+	}
 
 	d := Download{
 		Url:          link,
+		TargetPath:   downloadPath,
+		Filename:     details.Name,
 		TotalSection: 20,
 	}
 
-	fileName, size, err := GetFileDetails(link)
-	if err != nil {
-		return err
-	}
-
-	downloadPath, err := GetDownloadPath(fileName)
-	if err != nil {
-		return err
-	}
-
-	d.TargetPath = downloadPath
-	d.Filename = fileName
-
-	err = d.Do(size)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Download took %s\n", time.Since(startTime))
-
-	return nil
+	return d.Do(details.Size, details.AcceptRanges)
 }

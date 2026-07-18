@@ -1,16 +1,6 @@
 package helper
 
-import (
-	"fmt"
-	"math"
-)
-
-func IntToFloatString(value int) string {
-	floatValue := float64(value)
-	floatValue = floatValue / math.Pow(10, 6)
-
-	return fmt.Sprintf("%f", floatValue)
-}
+import "fmt"
 
 // HumanBytes formats a raw byte count into a friendly, human-readable string
 // such as "0 B", "812 KB", "12.3 MB" or "1.21 GB". It uses binary (1024) units.
