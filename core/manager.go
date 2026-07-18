@@ -48,7 +48,49 @@ func newManager(downloadDir, stateDir string) (*Manager, error) {
 	if err := os.MkdirAll(stateDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	return &Manager{downloadDir: downloadDir, stateDir: stateDir, done: make(chan struct{})}, nil
+	m := &Manager{downloadDir: downloadDir, stateDir: stateDir, done: make(chan struct{})}
+	go m.sampleLoop()
+	return m, nil
+}
+
+// sampleLoop periodically updates each running job's transfer speed until Close.
+func (m *Manager) sampleLoop() {
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-m.done:
+			return
+		case <-t.C:
+			m.sample()
+		}
+	}
+}
+
+func (m *Manager) sample() {
+	m.mu.Lock()
+	jobs := make([]*Job, len(m.jobs))
+	copy(jobs, m.jobs)
+	m.mu.Unlock()
+
+	now := time.Now()
+	for _, j := range jobs {
+		if j.getState() != StateDownloading {
+			continue
+		}
+		downloaded := j.measured(m.stateDir, StateDownloading)
+		j.mu.Lock()
+		if dt := now.Sub(j.lastSampleTime).Seconds(); dt > 0 {
+			s := float64(downloaded-j.lastBytes) / dt
+			if s < 0 {
+				s = 0
+			}
+			j.speed = ewma(j.speed, s, 0.3)
+		}
+		j.lastBytes = downloaded
+		j.lastSampleTime = now
+		j.mu.Unlock()
+	}
 }
 
 // Close stops the manager's background goroutines.
@@ -95,10 +137,11 @@ func (m *Manager) Add(rawURL string) (string, error) {
 // start runs a job to completion and records its terminal state.
 func (m *Manager) start(j *Job) {
 	ctx, cancel := context.WithCancel(context.Background())
+	seed := j.measured(m.stateDir, StateDownloading) // may be >0 when resuming
 	j.mu.Lock()
 	j.cancel = cancel
 	j.state = StateDownloading
-	j.lastBytes = 0
+	j.lastBytes = seed
 	j.lastSampleTime = time.Now()
 	j.mu.Unlock()
 

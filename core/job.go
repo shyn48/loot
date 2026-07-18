@@ -99,6 +99,23 @@ func (j *Job) statusWithDownloaded(downloaded int64) JobStatus {
 	}
 }
 
+// measured returns the bytes downloaded so far, derived from disk (temp files
+// for segmented jobs, the target file otherwise). Pure w.r.t. job locks.
+func (j *Job) measured(tempDir string, state JobState) int64 {
+	switch {
+	case state == StateDone:
+		return j.Size
+	case j.isSegmented():
+		var total int64
+		for i := range j.Sections {
+			total += fileSize(j.sectionFile(tempDir, i))
+		}
+		return total
+	default:
+		return fileSize(j.TargetPath)
+	}
+}
+
 // snapshot reads job state under lock, then measures downloaded bytes from disk.
 func (j *Job) snapshot(tempDir string) JobStatus {
 	j.mu.Lock()
@@ -109,17 +126,7 @@ func (j *Job) snapshot(tempDir string) JobStatus {
 	}
 	j.mu.Unlock()
 
-	var downloaded int64
-	switch {
-	case state == StateDone:
-		downloaded = j.Size
-	case j.isSegmented():
-		for i := range j.Sections {
-			downloaded += fileSize(j.sectionFile(tempDir, i))
-		}
-	default:
-		downloaded = fileSize(j.TargetPath)
-	}
+	downloaded := j.measured(tempDir, state)
 
 	var pct float64
 	if j.Size > 0 {
