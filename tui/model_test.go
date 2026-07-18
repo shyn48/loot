@@ -15,12 +15,12 @@ type fakeController struct {
 }
 
 func (f *fakeController) Add(url string) (string, error) { f.added = url; return "new", nil }
-func (f *fakeController) Pause(id string)                 { f.paused = id }
-func (f *fakeController) Resume(id string)                { f.resumed = id }
-func (f *fakeController) Remove(id string)                { f.removed = id }
-func (f *fakeController) OpenFolder() error               { f.opened = true; return nil }
-func (f *fakeController) Snapshot() []core.JobStatus      { return f.rows }
-func (f *fakeController) PauseAll()                       { f.pausedAll = true }
+func (f *fakeController) Pause(id string)                { f.paused = id }
+func (f *fakeController) Resume(id string)               { f.resumed = id }
+func (f *fakeController) Remove(id string)               { f.removed = id }
+func (f *fakeController) OpenFolder() error              { f.opened = true; return nil }
+func (f *fakeController) Snapshot() []core.JobStatus     { return f.rows }
+func (f *fakeController) PauseAll()                      { f.pausedAll = true }
 
 func threeRows() []core.JobStatus {
 	return []core.JobStatus{
