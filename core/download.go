@@ -29,6 +29,25 @@ type FileDetails struct {
 	Name         string
 	Size         int64
 	AcceptRanges bool
+	Validator    string // ETag (preferred) or Last-Modified, for resume validation
+}
+
+// validatorFrom returns the resource version identifier: the ETag if present,
+// otherwise Last-Modified.
+func validatorFrom(resp *http.Response) string {
+	if et := resp.Header.Get("ETag"); et != "" {
+		return et
+	}
+	return resp.Header.Get("Last-Modified")
+}
+
+// getValidator does a HEAD and returns the resource's current validator.
+func getValidator(url string) (string, error) {
+	resp, err := getFileInfo(url)
+	if err != nil {
+		return "", err
+	}
+	return validatorFrom(resp), nil
 }
 
 func newRequest(url, method string) (*http.Request, error) {
@@ -73,13 +92,14 @@ func GetFileDetails(link string) (FileDetails, error) {
 	}
 
 	acceptRanges := strings.EqualFold(resp.Header.Get("Accept-Ranges"), "bytes")
+	validator := validatorFrom(resp)
 
 	// Prefer the server-provided filename (Content-Disposition) when present;
 	// it is more reliable than guessing from the URL.
 	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
 		if _, params, err := mime.ParseMediaType(cd); err == nil {
 			if fn := strings.TrimSpace(params["filename"]); fn != "" {
-				return FileDetails{Name: filepath.Base(fn), Size: size, AcceptRanges: acceptRanges}, nil
+				return FileDetails{Name: filepath.Base(fn), Size: size, AcceptRanges: acceptRanges, Validator: validator}, nil
 			}
 		}
 	}
@@ -104,5 +124,5 @@ func GetFileDetails(link string) (FileDetails, error) {
 		}
 	}
 
-	return FileDetails{Name: fileName, Size: size, AcceptRanges: acceptRanges}, nil
+	return FileDetails{Name: fileName, Size: size, AcceptRanges: acceptRanges, Validator: validator}, nil
 }

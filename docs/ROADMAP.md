@@ -16,7 +16,7 @@ support is explicitly out of scope.
   20; small files use a single stream.
 - ✅ **`Content-Disposition` filename** — done. Uses the server-provided filename when present,
   falling back to URL-based guessing.
-- **`ETag`/`Last-Modified` resume validation** — restart from zero if the file changed server-side.
+- ✅ **`ETag`/`Last-Modified` resume validation** — done. Captures the validator at Add (persisted in meta); before resuming a job with partial temp files, re-HEADs and, if the validator changed, discards the stale partial and restarts from zero.
 - **Disk-space precheck** before starting a download.
 - **Checksum verification** — server `Content-MD5` or a user-supplied hash.
 

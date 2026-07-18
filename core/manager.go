@@ -164,6 +164,7 @@ func (m *Manager) Add(rawURL string) (string, error) {
 		TargetPath:   filepath.Join(m.downloadDir, name),
 		Size:         details.Size,
 		AcceptRanges: details.AcceptRanges,
+		Validator:    details.Validator,
 		TotalSection: totalSection,
 		state:        StateQueued,
 	}
@@ -322,6 +323,7 @@ func (m *Manager) LoadPersisted() error {
 			TargetPath:   md.TargetPath,
 			Size:         md.Size,
 			AcceptRanges: md.AcceptRanges,
+			Validator:    md.Validator,
 			Sections:     md.Sections,
 			TotalSection: md.TotalSection,
 		}
@@ -440,6 +442,7 @@ func (m *Manager) metaFor(j *Job) meta {
 		TotalSection: j.TotalSection,
 		Sections:     j.Sections,
 		AcceptRanges: j.AcceptRanges,
+		Validator:    j.Validator,
 		CreatedAt:    time.Now(),
 	}
 }

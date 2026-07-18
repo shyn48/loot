@@ -33,6 +33,7 @@ type Job struct {
 	ID, URL, Filename, TargetPath string
 	Size                          int64
 	AcceptRanges                  bool
+	Validator                     string // ETag/Last-Modified captured at Add
 	Sections                      [][2]int64
 	TotalSection                  int
 
@@ -168,6 +169,15 @@ func (j *Job) sectionFile(tempDir string, i int) string {
 func (j *Job) run(ctx context.Context, tempDir string) error {
 	if !j.isSegmented() {
 		return j.singleStreamWithRetry(ctx)
+	}
+
+	// If we're resuming with partial temp files, make sure the server file hasn't
+	// changed since we started; if it has, the old bytes are stale — discard them
+	// and restart from zero rather than merging old + new into a corrupt file.
+	if j.Validator != "" && j.hasTempFiles(tempDir) {
+		if cur, err := getValidator(j.URL); err == nil && cur != "" && cur != j.Validator {
+			j.cleanupTempFiles(tempDir)
+		}
 	}
 
 	wg := sync.WaitGroup{}

@@ -20,6 +20,7 @@ type meta struct {
 	TotalSection int        `json:"totalSection"`
 	Sections     [][2]int64 `json:"sections"`
 	AcceptRanges bool       `json:"acceptRanges"`
+	Validator    string     `json:"validator,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 
