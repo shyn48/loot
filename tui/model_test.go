@@ -12,17 +12,38 @@ import (
 type fakeController struct {
 	rows                            []core.JobStatus
 	added, paused, resumed, removed string
+	addedURLs                       []string
 	opened, pausedAll               bool
 	addErr                          error
 }
 
-func (f *fakeController) Add(url string) (string, error) { f.added = url; return "new", f.addErr }
-func (f *fakeController) Pause(id string)                { f.paused = id }
-func (f *fakeController) Resume(id string)               { f.resumed = id }
-func (f *fakeController) Remove(id string)               { f.removed = id }
-func (f *fakeController) OpenFolder() error              { f.opened = true; return nil }
-func (f *fakeController) Snapshot() []core.JobStatus     { return f.rows }
-func (f *fakeController) PauseAll()                      { f.pausedAll = true }
+func (f *fakeController) Add(url string) (string, error) {
+	f.added = url
+	f.addedURLs = append(f.addedURLs, url)
+	return "new", f.addErr
+}
+func (f *fakeController) Pause(id string)            { f.paused = id }
+func (f *fakeController) Resume(id string)           { f.resumed = id }
+func (f *fakeController) Remove(id string)           { f.removed = id }
+func (f *fakeController) OpenFolder() error          { f.opened = true; return nil }
+func (f *fakeController) Snapshot() []core.JobStatus { return f.rows }
+func (f *fakeController) PauseAll()                  { f.pausedAll = true }
+
+// Disable real-clipboard reads in tests by default; individual tests override.
+func init() { readClipboard = func() (string, error) { return "", nil } }
+
+func TestClipboardPrefill(t *testing.T) {
+	orig := readClipboard
+	defer func() { readClipboard = orig }()
+	readClipboard = func() (string, error) { return "  https://example.com/f.zip  ", nil }
+
+	fc := &fakeController{}
+	m := newModel(fc)
+	m, _ = updateKey(m, "a")
+	if got := m.input.Value(); got != "https://example.com/f.zip" {
+		t.Fatalf("clipboard not prefilled: %q", got)
+	}
+}
 
 func threeRows() []core.JobStatus {
 	return []core.JobStatus{
@@ -104,6 +125,20 @@ func TestAddModeFlow(t *testing.T) {
 	m, _ = updateKey(m, "enter")
 	if fc.added != "http://x/f" || m.adding {
 		t.Fatalf("added=%q adding=%v", fc.added, m.adding)
+	}
+}
+
+func TestBatchAdd(t *testing.T) {
+	fc := &fakeController{}
+	m := newModel(fc)
+	m, _ = updateKey(m, "a")
+	m = typeString(m, "http://x/a http://x/b http://x/c")
+	m, _ = updateKey(m, "enter")
+	if len(fc.addedURLs) != 3 {
+		t.Fatalf("expected 3 adds, got %d: %v", len(fc.addedURLs), fc.addedURLs)
+	}
+	if m.adding {
+		t.Fatal("should exit add mode")
 	}
 }
 

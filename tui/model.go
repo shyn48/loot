@@ -4,11 +4,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"simple-gui/core"
+	"simple-gui/helper"
 )
+
+// readClipboard is a package var so tests can stub out the real system clipboard.
+var readClipboard = clipboard.ReadAll
+
+// splitURLs splits a batch-add input into individual URLs on any whitespace.
+func splitURLs(s string) []string {
+	return strings.Fields(s)
+}
 
 // Model is the Bubble Tea model. It holds no download state of its own — it
 // renders core.Controller snapshots and forwards key actions to the controller.
@@ -122,6 +132,14 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.adding = true
 		m.errMsg = ""
 		m.input.Reset()
+		// Prefill from the clipboard if it looks like a URL (copy link → a → enter).
+		if clip, err := readClipboard(); err == nil {
+			clip = strings.TrimSpace(clip)
+			if f := strings.Fields(clip); len(f) > 0 && helper.IsValidUrl(f[0]) {
+				m.input.SetValue(clip)
+				m.input.CursorEnd()
+			}
+		}
 		m.input.Focus()
 		return m, textinput.Blink
 	case "/":
@@ -156,12 +174,19 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateAdding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		if url := strings.TrimSpace(m.input.Value()); url != "" {
+		var lastErr string
+		added := 0
+		for _, url := range splitURLs(m.input.Value()) {
 			if _, err := m.ctrl.Add(url); err != nil {
-				m.errMsg = err.Error()
+				lastErr = err.Error()
 			} else {
-				m.errMsg = ""
+				added++
 			}
+		}
+		if added == 0 && lastErr != "" {
+			m.errMsg = lastErr
+		} else {
+			m.errMsg = ""
 		}
 		m.input.Reset()
 		m.adding = false
