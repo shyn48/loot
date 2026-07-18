@@ -139,7 +139,7 @@ func (m Model) headerPanel(cw int) string {
 	speed := helper.HumanBytes(int(s.totalSpeed)) + "/s"
 	right := sMuted.Render(m.clockStr)
 
-	full := sTitle.Render("godownloader") + sBorder.Render("  │ ") +
+	full := sTitle.Render("Loot") + sBorder.Render("  │ ") +
 		stat("Active", fmt.Sprint(s.active)) + sBorder.Render(" │ ") +
 		stat("Total Speed", speed) + sBorder.Render(" │ ") +
 		stat("Completed", fmt.Sprint(s.completed)) + sBorder.Render(" │ ") +
@@ -151,7 +151,7 @@ func (m Model) headerPanel(cw int) string {
 
 	// Compact header for narrow terminals.
 	cs := func(label, val string) string { return sMuted.Render(label) + sAccent.Bold(true).Render(val) }
-	compact := sTitle.Render("godownloader") + "  " +
+	compact := sTitle.Render("Loot") + "  " +
 		cs("A:", fmt.Sprint(s.active)) + "  " +
 		sAccent.Bold(true).Render(speed) + "  " +
 		cs("✓", fmt.Sprint(s.completed)) + "  " +

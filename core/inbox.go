@@ -9,7 +9,7 @@ import (
 )
 
 // The inbox is a plain text file (one URL per line) in the state directory. The
-// `godownloader add <url>` CLI appends to it from a separate process; a running
+// `loot add <url>` CLI appends to it from a separate process; a running
 // manager drains it, so URLs sent from outside (e.g. an Automator Quick Action)
 // show up in the live app.
 

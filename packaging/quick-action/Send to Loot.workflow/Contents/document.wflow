@@ -59,8 +59,8 @@
 				<key>ActionParameters</key>
 				<dict>
 					<key>COMMAND_STRING</key>
-					<string>BIN="$HOME/go/bin/godownloader"
-[ -x "$BIN" ] || BIN="/Applications/Shyn Download Manager.app/Contents/MacOS/godownloader-bin"
+					<string>BIN="$HOME/go/bin/loot"
+[ -x "$BIN" ] || BIN="/Applications/Loot.app/Contents/MacOS/loot-bin"
 for u in "$@"; do
     "$BIN" add "$u"
 done</string>

@@ -10,7 +10,7 @@ import (
 )
 
 // Config holds user-editable settings loaded from
-// ~/.config/godownloader/config.toml.
+// ~/.config/loot/config.toml.
 type Config struct {
 	DownloadDir   string `toml:"download_dir"`
 	MaxActive     int    `toml:"max_active"`
@@ -33,7 +33,7 @@ func configPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "godownloader", "config.toml")
+	return filepath.Join(home, ".config", "loot", "config.toml")
 }
 
 // expandHome replaces a leading ~ with the user's home directory.
@@ -93,7 +93,7 @@ func writeDefaultConfig(path string, cfg Config) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return
 	}
-	content := "# godownloader configuration\n\n" +
+	content := "# Loot configuration\n\n" +
 		"download_dir = \"" + cfg.DownloadDir + "\"\n" +
 		"max_active = " + strconv.Itoa(cfg.MaxActive) + "        # simultaneous downloads\n" +
 		"section_size_mb = " + strconv.Itoa(cfg.SectionSizeMB) + "   # ~1 parallel section per N MB (max 20 sections)\n" +

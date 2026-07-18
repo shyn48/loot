@@ -118,7 +118,7 @@ func emptyState() g.Widget {
 func header() g.Widget {
 	return g.Layout{
 		g.Row(
-			g.Style().SetFontSize(22).To(coloredLabel("Shyn Download Manager", colorText)),
+			g.Style().SetFontSize(22).To(coloredLabel("Loot", colorText)),
 		),
 		g.Style().SetFontSize(13).To(coloredLabel("Fast, simple downloads.", colorTextMuted)),
 		g.Dummy(0, 6),

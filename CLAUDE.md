@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A download manager written in Go with **two front-ends over one shared engine**: a terminal
 UI (Bubble Tea) that is the default, and a desktop window (giu / Dear ImGui). The command
-`godownloader` opens the TUI; `godownloader --gui` opens the window. The module is named
+`loot` opens the TUI; `loot --gui` opens the window. The module is named
 `simple-gui`; internal imports use that prefix (e.g. `simple-gui/core`).
 
 ## Commands
@@ -17,8 +17,8 @@ go run . --gui      # run the giu desktop window (dev)
 go test ./...       # run the test suite (core + tui pure logic)
 go test -race ./core/   # engine is concurrent — race-check it
 go vet ./...
-make install-cli    # build and copy `godownloader` to $(go env GOPATH)/bin
-make app            # build the signed macOS .app (double-click → GUI)
+make install-cli    # build and copy `loot` to $(go env GOPATH)/bin
+make app            # build the signed macOS .app (double-click → TUI in Terminal)
 make install        # copy the .app into /Applications
 ```
 
@@ -49,9 +49,9 @@ hands the manager to either `tui.Run(m)` or `gui.Run(m)`.
   - `download.go` now holds only shared HTTP helpers + `GetFileDetails` (single HEAD probe →
     `FileDetails{Name, Size, AcceptRanges}`, honoring `Content-Disposition`). `sections.go` has the
     pure math (`computeSections`, `remainingRange`, `sectionsForSize`, `ewma`, `etaSeconds`).
-  - **Config** (`config.go`): `~/.config/godownloader/config.toml` sets `download_dir` (default
+  - **Config** (`config.go`): `~/.config/loot/config.toml` sets `download_dir` (default
     `~/Downloads`), `max_active`, `section_size_mb`; applied in `NewManager`. State/temp files live
-    in `~/shyn-dl-manager/out/tmp` (`GetTempPath`); `<id>.meta.json` records each download there.
+    in `~/.loot/tmp` (`GetTempPath`); `<id>.meta.json` records each download there.
   - **Queue/retry**: `maxActive` caps concurrent downloads (`schedule()` promotes queued jobs);
     sections retry with backoff (`runSection`).
 

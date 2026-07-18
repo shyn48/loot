@@ -1,8 +1,8 @@
-# godownloader — build & install (terminal TUI + macOS desktop app).
+# loot — build & install (terminal TUI + macOS desktop app).
 
-APP_NAME    := Shyn Download Manager
-BINARY      := godownloader
-BUNDLE_ID   := com.shyn.gownloader
+APP_NAME    := Loot
+BINARY      := loot
+BUNDLE_ID   := com.shyn.loot
 DIST        := dist
 APP         := $(DIST)/$(APP_NAME).app
 ICNS        := packaging/AppIcon.icns
@@ -28,28 +28,28 @@ build:
 	@mkdir -p $(DIST)
 	go build -o $(DIST)/$(BINARY) .
 
-## install-cli: put the godownloader TUI command on your PATH
+## install-cli: put the loot TUI command on your PATH
 install-cli: build
 	cp $(DIST)/$(BINARY) "$(GOBIN)/$(BINARY)"
 	@echo "Installed $(BINARY) to $(GOBIN) (make sure it is on your PATH)"
 
-## install-quick-action: install the "Send to godownloader" right-click Quick Action
+## install-quick-action: install the "Send to Loot" right-click Quick Action
 install-quick-action:
 	@mkdir -p "$(HOME)/Library/Services"
-	@rm -rf "$(HOME)/Library/Services/Send to godownloader.workflow"
-	cp -R "packaging/quick-action/Send to godownloader.workflow" "$(HOME)/Library/Services/"
+	@rm -rf "$(HOME)/Library/Services/Send to Loot.workflow"
+	cp -R "packaging/quick-action/Send to Loot.workflow" "$(HOME)/Library/Services/"
 	@echo "Installed. Enable it in System Settings ▸ Keyboard ▸ Keyboard Shortcuts ▸ Services if needed,"
-	@echo "then right-click a URL/selected text ▸ Services ▸ Send to godownloader."
+	@echo "then right-click a URL/selected text ▸ Services ▸ Send to Loot."
 
 ## app: assemble a double-clickable, ad-hoc-signed .app (opens the TUI in Terminal)
 app: build $(ICNS)
 	@rm -rf "$(APP)"
 	@mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	# The bundle executable is a launcher script that opens the TUI in Terminal.app;
-	# the real binary is shipped alongside it as godownloader-bin (fallback).
-	cp $(DIST)/$(BINARY) "$(APP)/Contents/MacOS/godownloader-bin"
-	cp packaging/launch-terminal.sh "$(APP)/Contents/MacOS/godownloader"
-	chmod +x "$(APP)/Contents/MacOS/godownloader"
+	# the real binary is shipped alongside it as loot-bin (fallback).
+	cp $(DIST)/$(BINARY) "$(APP)/Contents/MacOS/loot-bin"
+	cp packaging/launch-terminal.sh "$(APP)/Contents/MacOS/loot"
+	chmod +x "$(APP)/Contents/MacOS/loot"
 	cp packaging/Info.plist "$(APP)/Contents/Info.plist"
 	cp $(ICNS) "$(APP)/Contents/Resources/AppIcon.icns"
 	# Ad-hoc signature so Gatekeeper allows it to launch on this machine.

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Shyn Download Manager</string>
+	<string>Loot</string>
 	<key>CFBundleDisplayName</key>
-	<string>Shyn Download Manager</string>
+	<string>Loot</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.shyn.gownloader</string>
+	<string>com.shyn.loot</string>
 	<key>CFBundleExecutable</key>
-	<string>godownloader</string>
+	<string>loot</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>

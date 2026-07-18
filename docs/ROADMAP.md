@@ -1,4 +1,4 @@
-# godownloader — Roadmap / Deferred Improvements
+# loot — Roadmap / Deferred Improvements
 
 Ideas captured for later. **TUI polish is being done first** (see the reference in
 `docs/tui-reference.png` intent). This project is intentionally **macOS-only** — cross-platform
@@ -21,10 +21,10 @@ support is explicitly out of scope.
 - **Checksum verification** — server `Content-MD5` or a user-supplied hash.
 
 ## Features
-- ✅ **Config file** — done. `~/.config/godownloader/config.toml` sets `download_dir` (default
+- ✅ **Config file** — done. `~/.config/loot/config.toml` sets `download_dir` (default
   `~/Downloads`), `max_active`, and `section_size_mb`. Written with defaults on first run.
   (Bandwidth throttle setting still TODO.)
-- ✅ **Send to godownloader (Automator Quick Action)** — done. `godownloader add <url>` appends to
+- ✅ **Send to Loot (Automator Quick Action)** — done. `loot add <url>` appends to
   an inbox the running app drains every second; ships an Automator Quick Action to right-click any
   URL. See `docs/QUICK-ACTION.md`. (A background daemon for headless downloads is still out of scope.)
 - ✅ **Clipboard add** — done. Pressing `a` prefills the input from the clipboard when it's a URL.
@@ -40,10 +40,10 @@ support is explicitly out of scope.
 - Add **speed/ETA columns** to the desktop window so it matches the TUI.
 
 ## Distribution
-- **GoReleaser + Homebrew tap** (`brew install shyn48/tap/godownloader`).
+- **GoReleaser + Homebrew tap** (`brew install shyn48/tap/loot`).
 - **Notarized universal `.app`** for sharing the GUI with other Macs.
 - **README with a TUI GIF**.
-- **Rename the Go module** from the leftover `simple-gui` to `github.com/shyn48/gownloader`.
+- **Rename the Go module** from the leftover `simple-gui` to `github.com/shyn48/loot`.
 
 ## Explicitly out of scope
 - Cross-platform (Linux/Windows). macOS only, by choice.

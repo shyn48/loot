@@ -1,6 +1,6 @@
 package core
 
 const (
-	DOWNLOAD_PATH = "shyn-dl-manager/out/downloads"
-	TMP_PATH      = "shyn-dl-manager/out/tmp"
+	DOWNLOAD_PATH = ".loot/downloads"
+	TMP_PATH      = ".loot/tmp"
 )

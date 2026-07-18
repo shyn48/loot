@@ -246,7 +246,7 @@ func (m *Manager) start(j *Job) {
 // notifyDone posts a macOS notification that a download finished.
 func notifyDone(name string) {
 	safe := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name)
-	script := fmt.Sprintf(`display notification "%s" with title "godownloader" subtitle "Download complete"`, safe)
+	script := fmt.Sprintf(`display notification "%s" with title "Loot" subtitle "Download complete"`, safe)
 	exec.Command("osascript", "-e", script).Run()
 }
 
