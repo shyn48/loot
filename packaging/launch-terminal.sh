@@ -10,13 +10,20 @@ if [ ! -x "$BIN" ]; then
     BIN="$(cd "$(dirname "$0")" && pwd)/loot-bin"
 fi
 
-# do script returns the tab; we wait until it's no longer busy (the TUI has
-# exited) and then close its window. The single quotes handle a path with spaces.
+# do script returns the tab immediately — before the process has started — so we
+# first wait for the tab to become busy, THEN wait for it to finish, and only
+# then close its window. (Closing on the first `busy` read would slam the window
+# shut right after it opened.)
 osascript <<APPLESCRIPT
 tell application "Terminal"
     activate
     set theTab to do script "exec '$BIN'"
     try
+        set waited to 0.0
+        repeat until (theTab is busy) or (waited > 5.0)
+            delay 0.1
+            set waited to waited + 0.1
+        end repeat
         repeat while theTab is busy
             delay 0.3
         end repeat
