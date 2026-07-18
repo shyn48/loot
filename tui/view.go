@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -247,15 +248,123 @@ func etaColumn(r core.JobStatus) string {
 	}
 }
 
-// ---- detail panel (enriched in later tasks) ----
+// ---- detail panel ----
 
 func (m Model) detailPanel(r core.JobStatus, inner int) string {
+	rightW := 30
+	// Two " │ " separators (3 cols each) sit between the three columns.
+	const sepTotal = 6
+	leftW := (inner - rightW - sepTotal) / 2
+	midW := inner - leftW - rightW - sepTotal
+	if leftW < 20 || midW < 10 {
+		// too narrow for three columns — show just the left info
+		return box(detailLeft(r, inner), inner)
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top,
+		detailLeft(r, leftW),
+		sBorder.Render(" │ "),
+		m.detailSparkline(r, midW),
+		sBorder.Render(" │ "),
+		detailRight(r, rightW),
+	)
+	return box(row, inner)
+}
+
+func detailLeft(r core.JobStatus, w int) string {
+	field := func(label, val string, valStyle lipgloss.Style) string {
+		return sMuted.Render(label) + valStyle.Render(truncate(val, max(1, w-len(label))))
+	}
+	lines := []string{
+		field("File: ", r.Name, sText),
+		field("URL : ", r.URL, sAccent),
+		field("Path: ", r.Path, sMuted),
+		sMuted.Render("Connections: ") + sText.Render(fmt.Sprint(r.Connections)),
+		sMuted.Render("Downloaded: ") + sText.Render(fmt.Sprintf("%s / %s",
+			helper.HumanBytes(int(r.Downloaded)), helper.HumanBytes(int(r.Size)))),
+	}
+	return lipgloss.NewStyle().Width(w).Render(strings.Join(lines, "\n"))
+}
+
+func detailRight(r core.JobStatus, w int) string {
+	rule := ""
+	if w > 10 {
+		rule = sBorder.Render(strings.Repeat("─", w-9))
+	}
+	started, elapsed := "—", "—"
+	if !r.StartedAt.IsZero() {
+		started = r.StartedAt.Format("15:04:05")
+		elapsed = formatHMS(int(time.Since(r.StartedAt).Seconds()))
+	}
+	lines := []string{
+		sMuted.Render("Progress ") + rule,
+		progressColumn(r),
+		sMuted.Render("Started: ") + sText.Render(started),
+		sMuted.Render("Elapsed: ") + sText.Render(elapsed),
+		sMuted.Render("ETA:     ") + sText.Render(etaColumn(r)),
+	}
+	return lipgloss.NewStyle().Width(w).Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) detailSparkline(r core.JobStatus, w int) string {
+	const h = 4
+	hist := m.speedHist[r.ID]
+	var maxV float64
+	for _, v := range hist {
+		if v > maxV {
+			maxV = v
+		}
+	}
+	rows := sparkline(hist, max(1, w-5), h)
+	maxMB := maxV / 1e6
+	labels := []string{fmt.Sprintf("%3.1f", maxMB), "", fmt.Sprintf("%3.1f", maxMB/2), "0.0"}
+
 	var b strings.Builder
-	b.WriteString(sMuted.Render("File: ") + sText.Render(r.Name) + "\n")
-	b.WriteString(sMuted.Render("Downloaded: ") +
-		sText.Render(fmt.Sprintf("%s / %s", helper.HumanBytes(int(r.Downloaded)), helper.HumanBytes(int(r.Size)))) + "\n")
-	b.WriteString(sMuted.Render("Progress: ") + progressColumn(r))
-	return box(b.String(), inner)
+	b.WriteString(sMuted.Render("Speed (MB/s)") + "\n")
+	for i, rowStr := range rows {
+		lbl := ""
+		if i < len(labels) {
+			lbl = labels[i]
+		}
+		b.WriteString(sMuted.Render(fmt.Sprintf("%4s ", lbl)) + sAccent.Render(rowStr) + "\n")
+	}
+	return lipgloss.NewStyle().Width(w).Render(strings.TrimRight(b.String(), "\n"))
+}
+
+// sparkline renders a bar chart of samples as `height` rows (top to bottom) of
+// `width` columns, using the most recent `width` samples.
+func sparkline(samples []float64, width, height int) []string {
+	if len(samples) > width {
+		samples = samples[len(samples)-width:]
+	}
+	var maxV float64
+	for _, v := range samples {
+		if v > maxV {
+			maxV = v
+		}
+	}
+	if maxV <= 0 {
+		maxV = 1
+	}
+	cols := make([]int, len(samples))
+	for i, v := range samples {
+		cols[i] = int(v/maxV*float64(height) + 0.5)
+	}
+	rows := make([]string, height)
+	pad := width - len(cols)
+	for r := 0; r < height; r++ {
+		level := height - r // top row needs the tallest columns
+		var sb strings.Builder
+		sb.WriteString(strings.Repeat(" ", max(0, pad)))
+		for _, c := range cols {
+			if c >= level {
+				sb.WriteString("█")
+			} else {
+				sb.WriteString(" ")
+			}
+		}
+		rows[r] = sb.String()
+	}
+	return rows
 }
 
 // ---- footer ----

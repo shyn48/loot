@@ -13,16 +13,19 @@ import (
 // Model is the Bubble Tea model. It holds no download state of its own — it
 // renders core.Controller snapshots and forwards key actions to the controller.
 type Model struct {
-	ctrl     core.Controller
-	rows     []core.JobStatus
-	cursor   int
-	adding   bool
-	input    textinput.Model
-	showHelp bool
-	errMsg   string
-	clockStr string
-	w, h     int
+	ctrl      core.Controller
+	rows      []core.JobStatus
+	cursor    int
+	adding    bool
+	input     textinput.Model
+	showHelp  bool
+	errMsg    string
+	clockStr  string
+	speedHist map[string][]float64 // per-job recent speed samples, for the sparkline
+	w, h      int
 }
+
+const speedHistLen = 120
 
 type tickMsg time.Time
 
@@ -31,7 +34,26 @@ func newModel(ctrl core.Controller) Model {
 	ti.Placeholder = "https://example.com/file.zip"
 	ti.CharLimit = 2048
 	ti.Width = 60
-	return Model{ctrl: ctrl, rows: sortRows(ctrl.Snapshot()), input: ti}
+	return Model{ctrl: ctrl, rows: sortRows(ctrl.Snapshot()), input: ti, speedHist: map[string][]float64{}}
+}
+
+// recordSpeeds appends the current per-job speed to each job's bounded history
+// and drops history for jobs that no longer exist.
+func (m *Model) recordSpeeds() {
+	seen := make(map[string]bool, len(m.rows))
+	for _, r := range m.rows {
+		seen[r.ID] = true
+		h := append(m.speedHist[r.ID], r.Speed)
+		if len(h) > speedHistLen {
+			h = h[len(h)-speedHistLen:]
+		}
+		m.speedHist[r.ID] = h
+	}
+	for id := range m.speedHist {
+		if !seen[id] {
+			delete(m.speedHist, id)
+		}
+	}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -50,6 +72,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.rows = sortRows(m.ctrl.Snapshot())
 		m.clockStr = time.Time(msg).Format("15:04:05")
+		m.recordSpeeds()
 		m.clampCursor()
 		return m, tick()
 	case tea.KeyMsg:

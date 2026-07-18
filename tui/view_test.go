@@ -20,6 +20,19 @@ func TestBlockBar(t *testing.T) {
 	}
 }
 
+func TestSparkline(t *testing.T) {
+	rows := sparkline([]float64{0, 5, 10}, 3, 2)
+	if len(rows) != 2 {
+		t.Fatalf("want 2 rows, got %d", len(rows))
+	}
+	if rows[0] != "  █" {
+		t.Fatalf("top row = %q", rows[0])
+	}
+	if rows[1] != " ██" {
+		t.Fatalf("bottom row = %q", rows[1])
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	if truncate("short", 10) != "short" {
 		t.Fatal("no truncation when it fits")
