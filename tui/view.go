@@ -13,10 +13,7 @@ import (
 	"simple-gui/theme"
 )
 
-func hex(c color.RGBA) string {
-	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
-}
-
+func hex(c color.RGBA) string        { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 func lg(c color.RGBA) lipgloss.Color { return lipgloss.Color(hex(c)) }
 
 var (
@@ -31,43 +28,68 @@ var (
 	sBorder  = lipgloss.NewStyle().Foreground(lg(theme.Border))
 )
 
-// Column widths (inside the list panel). Name flexes to fill the remainder.
-const (
-	wCursor = 2
-	wProg   = 26
-	wSize   = 10
-	wSpeed  = 11
-	wEta    = 10
-	wStatus = 13
-	gaps    = 5 // single spaces between the 6 columns
-)
-
-func box(content string, inner int) string {
+// box wraps content in a rounded border with horizontal padding. cw is the
+// content width; the rendered box is cw+4 wide (2 border + 2 padding). Note
+// lipgloss's Width includes padding, so it is set to cw+2.
+func box(content string, cw int) string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lg(theme.Border)).
-		Width(inner).
+		Padding(0, 1).
+		Width(cw + 2).
 		Render(content)
+}
+
+// cols holds the computed, responsive column widths for the list.
+type cols struct {
+	name, prog, size, speed, eta, status, barW int
+}
+
+func computeCols(cw int) cols {
+	const (
+		wCursor = 2
+		gaps    = 5
+		wSize   = 10
+		wSpeed  = 10
+		wEta    = 9
+		wStatus = 12
+	)
+	avail := cw - wCursor - gaps - wSize - wSpeed - wEta - wStatus
+	if avail < 24 {
+		avail = 24
+	}
+	wProg := avail * 42 / 100
+	if wProg < 16 {
+		wProg = 16
+	}
+	if wProg > 30 {
+		wProg = 30
+	}
+	wName := avail - wProg
+	if wName < 8 {
+		wName = 8
+		wProg = avail - wName
+	}
+	return cols{name: wName, prog: wProg, size: wSize, speed: wSpeed, eta: wEta, status: wStatus, barW: wProg - 5}
 }
 
 func (m Model) View() string {
 	width := m.w
 	if width < 60 {
-		width = 100 // fallback before the first WindowSizeMsg
+		width = 100
 	}
 	height := m.h
 	if height < 16 {
 		height = 30
 	}
-	if width < 74 {
-		return sMuted.Render("Terminal too narrow — widen to at least 74 columns.")
+	if width < 76 {
+		return sMuted.Render("Terminal too narrow — widen to at least 76 columns.")
 	}
-	inner := width - 2
+	cw := width - 4 // content width inside border+padding
 
 	sel, hasSel := m.selected()
 	showDetail := hasSel && height >= 27
 
-	// Height budget: header(3) + footer(2) + optional detail + optional input line.
 	extra := 0
 	if m.errMsg != "" {
 		extra++
@@ -79,22 +101,22 @@ func (m Model) View() string {
 	if showDetail {
 		detailH = 7
 	}
-	listPanelH := height - 3 - 2 - detailH - extra
+	listPanelH := height - 3 - 1 - detailH - extra
 	if listPanelH < 6 {
 		listPanelH = 6
 	}
-	maxRows := listPanelH - 4 // borders(2) + column header + dashed rule
+	maxRows := listPanelH - 4
 	if maxRows < 1 {
 		maxRows = 1
 	}
 
-	parts := []string{m.headerPanel(inner)}
+	parts := []string{m.headerPanel(cw)}
 	if m.errMsg != "" {
 		parts = append(parts, sDanger.Render(" ⚠ "+m.errMsg))
 	}
-	parts = append(parts, m.listPanel(inner, maxRows))
+	parts = append(parts, m.listPanel(cw, maxRows))
 	if showDetail {
-		parts = append(parts, m.detailPanel(sel, inner))
+		parts = append(parts, m.detailPanel(sel, cw))
 	}
 	if m.adding {
 		parts = append(parts, sText.Render(" Add URL: ")+m.input.View())
@@ -109,16 +131,33 @@ func (m Model) View() string {
 
 // ---- header ----
 
-func (m Model) headerPanel(inner int) string {
+func (m Model) headerPanel(cw int) string {
 	s := computeStats(m.rows)
-	left := sTitle.Render("godownloader") + sBorder.Render("  │ ") +
+	speed := helper.HumanBytes(int(s.totalSpeed)) + "/s"
+	right := sMuted.Render(m.clockStr)
+
+	full := sTitle.Render("godownloader") + sBorder.Render("  │ ") +
 		stat("Active", fmt.Sprint(s.active)) + sBorder.Render(" │ ") +
-		stat("Total Speed", helper.HumanBytes(int(s.totalSpeed))+"/s") + sBorder.Render(" │ ") +
+		stat("Total Speed", speed) + sBorder.Render(" │ ") +
 		stat("Completed", fmt.Sprint(s.completed)) + sBorder.Render(" │ ") +
 		stat("Queued", fmt.Sprint(s.queued)) + sBorder.Render(" │ ") +
 		stat("Errors", fmt.Sprint(s.errors))
-	right := sMuted.Render(m.clockStr)
-	return box(padBetween(left, right, inner), inner)
+	if lipgloss.Width(full)+lipgloss.Width(right)+1 <= cw {
+		return box(padBetween(full, right, cw), cw)
+	}
+
+	// Compact header for narrow terminals.
+	cs := func(label, val string) string { return sMuted.Render(label) + sAccent.Bold(true).Render(val) }
+	compact := sTitle.Render("godownloader") + "  " +
+		cs("A:", fmt.Sprint(s.active)) + "  " +
+		sAccent.Bold(true).Render(speed) + "  " +
+		cs("✓", fmt.Sprint(s.completed)) + "  " +
+		cs("Q:", fmt.Sprint(s.queued)) + "  " +
+		cs("E:", fmt.Sprint(s.errors))
+	if lipgloss.Width(compact)+lipgloss.Width(right)+1 <= cw {
+		return box(padBetween(compact, right, cw), cw)
+	}
+	return box(compact, cw)
 }
 
 func stat(label, val string) string {
@@ -135,22 +174,14 @@ func padBetween(l, r string, w int) string {
 
 // ---- list ----
 
-func (m Model) nameWidth(inner int) int {
-	w := inner - wCursor - wProg - wSize - wSpeed - wEta - wStatus - gaps
-	if w < 10 {
-		w = 10
-	}
-	return w
-}
-
-func (m Model) listPanel(inner, maxRows int) string {
-	wName := m.nameWidth(inner)
+func (m Model) listPanel(cw, maxRows int) string {
+	c := computeCols(cw)
 	rows := m.visible()
 	var b strings.Builder
 
-	b.WriteString(columnHeader(wName))
+	b.WriteString(columnHeader(c))
 	b.WriteString("\n")
-	b.WriteString(sBorder.Render(strings.Repeat("╌", inner)))
+	b.WriteString(sBorder.Render(strings.Repeat("╌", cw)))
 
 	if len(rows) == 0 {
 		b.WriteString("\n\n")
@@ -159,33 +190,27 @@ func (m Model) listPanel(inner, maxRows int) string {
 		} else {
 			b.WriteString(sMuted.Render("  No downloads yet — press 'a' to add one."))
 		}
-		return box(b.String(), inner)
+		return box(b.String(), cw)
 	}
 
-	// Window the rows around the cursor so the list never overflows.
 	start, end := windowRows(len(rows), m.cursor, maxRows)
 	boundary := activeCount(rows)
 	if start > 0 {
-		b.WriteString("\n")
-		b.WriteString(sMuted.Render(fmt.Sprintf("  ↑ %d more", start)))
+		b.WriteString("\n" + sMuted.Render(fmt.Sprintf("  ↑ %d more", start)))
 	}
 	for i := start; i < end; i++ {
 		b.WriteString("\n")
 		if i == boundary && boundary > 0 && boundary < len(rows) {
-			b.WriteString(sBorder.Render(strings.Repeat("╌", inner)))
-			b.WriteString("\n")
+			b.WriteString(sBorder.Render(strings.Repeat("╌", cw)) + "\n")
 		}
-		b.WriteString(m.renderRow(i, rows[i], wName))
+		b.WriteString(m.renderRow(i, rows[i], c, cw))
 	}
 	if end < len(rows) {
-		b.WriteString("\n")
-		b.WriteString(sMuted.Render(fmt.Sprintf("  ↓ %d more", len(rows)-end)))
+		b.WriteString("\n" + sMuted.Render(fmt.Sprintf("  ↓ %d more", len(rows)-end)))
 	}
-	return box(b.String(), inner)
+	return box(b.String(), cw)
 }
 
-// windowRows returns the [start,end) slice of `total` rows to show given the
-// cursor and how many rows fit, keeping the cursor within the window.
 func windowRows(total, cursor, maxRows int) (int, int) {
 	if maxRows >= total {
 		return 0, total
@@ -202,35 +227,47 @@ func windowRows(total, cursor, maxRows int) (int, int) {
 	return start, end
 }
 
-func columnHeader(wName int) string {
-	col := func(s string, w int, right bool) string {
+func columnHeader(c cols) string {
+	h := func(s string, w int, right bool) string {
 		st := sMuted.Width(w)
 		if right {
 			st = st.Align(lipgloss.Right)
 		}
 		return st.Render(s)
 	}
-	return strings.Repeat(" ", wCursor) +
-		col("Name", wName, false) + " " +
-		col("Progress", wProg, false) + " " +
-		col("Size", wSize, true) + " " +
-		col("Speed", wSpeed, true) + " " +
-		col("ETA", wEta, true) + " " +
-		col("Status", wStatus, false)
+	return "  " +
+		h("Name", c.name, false) + " " +
+		h("Progress", c.prog, false) + " " +
+		h("Size", c.size, true) + " " +
+		h("Speed", c.speed, true) + " " +
+		h("ETA", c.eta, true) + " " +
+		h("Status", c.status, false)
 }
 
-func (m Model) renderRow(i int, r core.JobStatus, wName int) string {
+func (m Model) renderRow(i int, r core.JobStatus, c cols, cw int) string {
+	sel := i == m.cursor
+	bg := func(s lipgloss.Style) lipgloss.Style {
+		if sel {
+			return s.Background(lg(theme.Selection))
+		}
+		return s
+	}
+	sp := bg(lipgloss.NewStyle()).Render(" ")
+
 	cursor := "  "
 	nameStyle := sText
-	if i == m.cursor {
-		cursor = sAccent.Render("▸ ")
-		nameStyle = sAccent.Bold(true)
+	if sel {
+		cursor = "▸ "
+		nameStyle = sText.Bold(true)
 	}
-	name := nameStyle.Width(wName).Render(truncate(r.Name, wName-1))
-	size := sMuted.Width(wSize).Align(lipgloss.Right).Render(helper.HumanBytes(int(r.Size)))
-	speed := sMuted.Width(wSpeed).Align(lipgloss.Right).Render(speedText(r))
-	eta := sMuted.Width(wEta).Align(lipgloss.Right).Render(etaColumn(r))
-	return cursor + name + " " + progressColumn(r) + " " + size + " " + speed + " " + eta + " " + statusColumn(r)
+	row := bg(sAccent).Render(cursor) +
+		bg(nameStyle).Width(c.name).Render(truncate(r.Name, c.name-1)) + sp +
+		progressColumn(r, c.barW, c.prog, bg) + sp +
+		bg(sMuted).Width(c.size).Align(lipgloss.Right).Render(helper.HumanBytes(int(r.Size))) + sp +
+		bg(sMuted).Width(c.speed).Align(lipgloss.Right).Render(speedText(r)) + sp +
+		bg(sMuted).Width(c.eta).Align(lipgloss.Right).Render(etaColumn(r)) + sp +
+		bg(stateStyle(r.State)).Width(c.status).Render(statusLabel(r))
+	return row
 }
 
 // ---- cells ----
@@ -245,45 +282,12 @@ func stateStyle(s core.JobState) lipgloss.Style {
 		return sSuccess
 	case core.StateFailed:
 		return sDanger
-	default: // downloading / merging
+	default:
 		return sAccent
 	}
 }
 
-// blockBar renders `width` block segments: filled ones in fStyle, the remainder
-// in eStyle, matching the reference's discrete-square look.
-func blockBar(percent float64, width int, filled, empty string, fStyle, eStyle lipgloss.Style) string {
-	n := int(percent/100*float64(width) + 0.5)
-	if n > width {
-		n = width
-	}
-	if n < 0 {
-		n = 0
-	}
-	return fStyle.Render(strings.Repeat(filled, n)) + eStyle.Render(strings.Repeat(empty, width-n))
-}
-
-func progressColumn(r core.JobStatus) string {
-	const barW = 14
-	var bar string
-	st := stateStyle(r.State)
-	switch r.State {
-	case core.StateDone:
-		bar = blockBar(100, barW, "■", "■", sSuccess, sSuccess)
-	case core.StateQueued:
-		bar = blockBar(0, barW, "■", "□", sMuted, sMuted)
-	case core.StatePaused:
-		bar = blockBar(r.Percent, barW, "■", "·", sWarn, sMuted)
-	case core.StateFailed:
-		bar = blockBar(r.Percent, barW, "■", "·", sDanger, sMuted)
-	default:
-		bar = blockBar(r.Percent, barW, "■", "·", sAccent, sMuted)
-	}
-	pct := st.Render(fmt.Sprintf("%3.0f%%", r.Percent))
-	return lipgloss.NewStyle().Width(wProg).Render(bar + " " + pct)
-}
-
-func statusColumn(r core.JobStatus) string {
+func statusLabel(r core.JobStatus) string {
 	label := map[core.JobState]string{
 		core.StateDownloading: "downloading",
 		core.StateMerging:     "merging",
@@ -295,7 +299,37 @@ func statusColumn(r core.JobStatus) string {
 	if label == "" {
 		label = string(r.State)
 	}
-	return stateStyle(r.State).Width(wStatus).Render(label)
+	return label
+}
+
+func blockBar(percent float64, width int, filled, empty string, fStyle, eStyle lipgloss.Style) string {
+	n := int(percent/100*float64(width) + 0.5)
+	if n > width {
+		n = width
+	}
+	if n < 0 {
+		n = 0
+	}
+	return fStyle.Render(strings.Repeat(filled, n)) + eStyle.Render(strings.Repeat(empty, width-n))
+}
+
+func progressColumn(r core.JobStatus, barW, wProg int, bg func(lipgloss.Style) lipgloss.Style) string {
+	st := stateStyle(r.State)
+	var bar string
+	switch r.State {
+	case core.StateDone:
+		bar = blockBar(100, barW, "■", "■", bg(sSuccess), bg(sSuccess))
+	case core.StateQueued:
+		bar = blockBar(0, barW, "■", "□", bg(sMuted), bg(sMuted))
+	case core.StatePaused:
+		bar = blockBar(r.Percent, barW, "■", "·", bg(sWarn), bg(sMuted))
+	case core.StateFailed:
+		bar = blockBar(r.Percent, barW, "■", "·", bg(sDanger), bg(sMuted))
+	default:
+		bar = blockBar(r.Percent, barW, "■", "·", bg(sAccent), bg(sMuted))
+	}
+	pct := bg(st).Render(fmt.Sprintf("%3.0f%%", r.Percent))
+	return bg(lipgloss.NewStyle()).Width(wProg).Render(bar + bg(lipgloss.NewStyle()).Render(" ") + pct)
 }
 
 func speedText(r core.JobStatus) string {
@@ -318,24 +352,23 @@ func etaColumn(r core.JobStatus) string {
 
 // ---- detail panel ----
 
-func (m Model) detailPanel(r core.JobStatus, inner int) string {
+func (m Model) detailPanel(r core.JobStatus, cw int) string {
 	rightW := 30
-	// Two " │ " separators (3 cols each) sit between the three columns.
 	const sepTotal = 6
-	leftW := (inner - rightW - sepTotal) / 2
-	midW := inner - leftW - rightW - sepTotal
-	if leftW < 20 || midW < 10 {
-		// too narrow for three columns — show just the left info
-		return box(detailLeft(r, inner), inner)
+	leftW := (cw - rightW - sepTotal) / 2
+	midW := cw - leftW - rightW - sepTotal
+	if leftW < 26 || midW < 14 {
+		return box(detailLeft(r, cw), cw)
 	}
+	noBg := func(s lipgloss.Style) lipgloss.Style { return s }
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
 		detailLeft(r, leftW),
 		sBorder.Render(" │ "),
 		m.detailSparkline(r, midW),
 		sBorder.Render(" │ "),
-		detailRight(r, rightW),
+		detailRight(r, rightW, noBg),
 	)
-	return box(row, inner)
+	return box(row, cw)
 }
 
 func detailLeft(r core.JobStatus, w int) string {
@@ -353,7 +386,7 @@ func detailLeft(r core.JobStatus, w int) string {
 	return lipgloss.NewStyle().Width(w).Render(strings.Join(lines, "\n"))
 }
 
-func detailRight(r core.JobStatus, w int) string {
+func detailRight(r core.JobStatus, w int, bg func(lipgloss.Style) lipgloss.Style) string {
 	rule := ""
 	if w > 10 {
 		rule = sBorder.Render(strings.Repeat("─", w-9))
@@ -365,7 +398,7 @@ func detailRight(r core.JobStatus, w int) string {
 	}
 	lines := []string{
 		sMuted.Render("Progress ") + rule,
-		progressColumn(r),
+		progressColumn(r, w-6, w, bg),
 		sMuted.Render("Started: ") + sText.Render(started),
 		sMuted.Render("Elapsed: ") + sText.Render(elapsed),
 		sMuted.Render("ETA:     ") + sText.Render(etaColumn(r)),
@@ -398,9 +431,10 @@ func (m Model) detailSparkline(r core.JobStatus, w int) string {
 	return lipgloss.NewStyle().Width(w).Render(strings.TrimRight(b.String(), "\n"))
 }
 
-// sparkline renders a bar chart of samples as `height` rows (top to bottom) of
-// `width` columns, using the most recent `width` samples.
+// sparkline renders samples as `height` rows of `width` columns using
+// partial-block characters for smooth bar tops.
 func sparkline(samples []float64, width, height int) []string {
+	blocks := []rune(" ▁▂▃▄▅▆▇█")
 	if len(samples) > width {
 		samples = samples[len(samples)-width:]
 	}
@@ -413,21 +447,25 @@ func sparkline(samples []float64, width, height int) []string {
 	if maxV <= 0 {
 		maxV = 1
 	}
-	cols := make([]int, len(samples))
+	levels := make([]int, len(samples)) // 0 .. height*8
 	for i, v := range samples {
-		cols[i] = int(v/maxV*float64(height) + 0.5)
+		levels[i] = int(v/maxV*float64(height*8) + 0.5)
 	}
 	rows := make([]string, height)
-	pad := width - len(cols)
+	pad := max(0, width-len(samples))
 	for r := 0; r < height; r++ {
-		level := height - r // top row needs the tallest columns
+		base := (height - 1 - r) * 8 // this row covers [base, base+8)
 		var sb strings.Builder
-		sb.WriteString(strings.Repeat(" ", max(0, pad)))
-		for _, c := range cols {
-			if c >= level {
-				sb.WriteString("█")
-			} else {
-				sb.WriteString(" ")
+		sb.WriteString(strings.Repeat(" ", pad))
+		for _, lvl := range levels {
+			cell := lvl - base
+			switch {
+			case cell <= 0:
+				sb.WriteRune(' ')
+			case cell >= 8:
+				sb.WriteRune('█')
+			default:
+				sb.WriteRune(blocks[cell])
 			}
 		}
 		rows[r] = sb.String()
@@ -438,17 +476,21 @@ func sparkline(samples []float64, width, height int) []string {
 // ---- footer ----
 
 func (m Model) footerBar(width int) string {
+	base := lipgloss.NewStyle().Background(lg(theme.FooterBg))
+	keyStyle := base.Foreground(lg(theme.Accent)).Bold(true)
+	lblStyle := base.Foreground(lg(theme.TextMuted))
+	sepStyle := base.Foreground(lg(theme.Border))
+
 	keys := []struct{ k, l string }{
 		{"a", "add"}, {"p", "pause"}, {"r", "resume"}, {"d", "delete"},
 		{"o", "open"}, {"/", "filter"}, {"?", "help"}, {"q", "quit"},
 	}
 	parts := make([]string, len(keys))
 	for i, it := range keys {
-		parts[i] = sAccent.Bold(true).Render(it.k) + " " + sMuted.Render(it.l)
+		parts[i] = keyStyle.Render(it.k) + lblStyle.Render(" "+it.l)
 	}
-	line := " " + strings.Join(parts, sBorder.Render("  │  "))
-	rule := sBorder.Render(strings.Repeat("─", width))
-	return rule + "\n" + line
+	line := strings.Join(parts, sepStyle.Render(" │ "))
+	return base.Width(width).Padding(0, 1).Render(line)
 }
 
 func truncate(s string, n int) string {

@@ -21,4 +21,6 @@ var (
 	Warning      = color.RGBA{R: 0xf5, G: 0xc5, B: 0x18, A: 0xff} // amber for PAUSED
 	Purple       = color.RGBA{R: 0xb5, G: 0x7e, B: 0xdc, A: 0xff} // for QUEUED
 	HeaderBg     = color.RGBA{R: 0x22, G: 0x29, B: 0x36, A: 0xff}
+	Selection    = color.RGBA{R: 0x1e, G: 0x2b, B: 0x48, A: 0xff} // selected-row band
+	FooterBg     = color.RGBA{R: 0x1a, G: 0x1f, B: 0x2b, A: 0xff} // footer bar background
 )
