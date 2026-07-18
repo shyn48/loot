@@ -307,3 +307,19 @@ func fileSize(path string) int64 {
 	}
 	return fi.Size()
 }
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// hasTempFiles reports whether any section temp file exists on disk (i.e. the
+// download is partially complete and resumable).
+func (j *Job) hasTempFiles(tempDir string) bool {
+	for i := range j.Sections {
+		if fileExists(j.sectionFile(tempDir, i)) {
+			return true
+		}
+	}
+	return false
+}

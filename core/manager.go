@@ -209,6 +209,102 @@ func (m *Manager) Resume(id string) {
 	go m.start(j)
 }
 
+// LoadPersisted rebuilds jobs from metadata left on disk by a previous run.
+// Incomplete downloads come back Paused (the user resumes them); already-
+// finished ones come back Done. Nothing auto-starts.
+func (m *Manager) LoadPersisted() error {
+	files, err := listMetaFiles(m.stateDir)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		md, err := readMeta(f)
+		if err != nil {
+			continue
+		}
+		j := &Job{
+			ID:           md.ID,
+			URL:          md.URL,
+			Filename:     md.Filename,
+			TargetPath:   md.TargetPath,
+			Size:         md.Size,
+			AcceptRanges: md.AcceptRanges,
+			Sections:     md.Sections,
+			TotalSection: md.TotalSection,
+		}
+		if fileExists(j.TargetPath) && !j.hasTempFiles(m.stateDir) {
+			j.state = StateDone
+		} else {
+			j.state = StatePaused
+		}
+		m.mu.Lock()
+		m.jobs = append(m.jobs, j)
+		m.mu.Unlock()
+	}
+	return nil
+}
+
+// Remove cancels a job (if running) and deletes its temp files and metadata. A
+// completed download's final file is kept.
+func (m *Manager) Remove(id string) {
+	m.mu.Lock()
+	var target *Job
+	for i, j := range m.jobs {
+		if j.ID == id {
+			target = j
+			m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
+			break
+		}
+	}
+	m.mu.Unlock()
+	if target == nil {
+		return
+	}
+
+	target.mu.Lock()
+	if target.cancel != nil {
+		target.cancel()
+	}
+	state := target.state
+	target.mu.Unlock()
+
+	target.cleanupTempFiles(m.stateDir)
+	if state != StateDone && !target.isSegmented() {
+		os.Remove(target.TargetPath) // partial single-stream file
+	}
+	os.Remove(metaPath(m.stateDir, id))
+}
+
+// PauseAll pauses every running download and waits briefly for them to stop, so
+// their temp files settle before the process exits (used on TUI quit).
+func (m *Manager) PauseAll() {
+	m.mu.Lock()
+	jobs := make([]*Job, len(m.jobs))
+	copy(jobs, m.jobs)
+	m.mu.Unlock()
+	for _, j := range jobs {
+		m.Pause(j.ID)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !m.anyDownloading() {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func (m *Manager) anyDownloading() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, j := range m.jobs {
+		if j.getState() == StateDownloading {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Manager) metaFor(j *Job) meta {
 	return meta{
 		ID:           j.ID,
